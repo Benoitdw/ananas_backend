@@ -80,12 +80,22 @@ class NotificationChannel(Base):
     user: Mapped[User] = relationship(back_populates="channels")
 
 
+# Provenance d'une entreprise. 'biowin' = importee du repertoire du POC,
+# 'from_user' = proposee par un utilisateur via le formulaire.
+SOURCE_BIOWIN = "biowin"
+SOURCE_USER = "from_user"
+
+
 class Company(Base):
     """Une entreprise du repertoire, affichee sur la carte.
 
-    Les colonnes descriptives viennent telles quelles du CSV du POC BioWin.
-    Les colonnes ``careers_url`` / ``scraper_key`` sont l'ajout d'Ananas: elles
-    branchent une entreprise sur un scraper concret.
+    Deux provenances (colonne ``source``): les 81 partenaires importes du CSV
+    BioWin, et celles proposees par les utilisateurs. Le reste du modele est
+    identique — une entreprise proposee est une entreprise a part entiere,
+    visible et enregistrable par tous.
+
+    Les colonnes ``careers_url`` / ``scraper_key`` branchent une entreprise sur
+    un scraper concret.
     """
 
     __tablename__ = "companies"
@@ -94,9 +104,23 @@ class Company(Base):
     slug: Mapped[str] = mapped_column(String(160), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
 
+    # --- provenance
+    source: Mapped[str] = mapped_column(
+        String(16), default=SOURCE_BIOWIN, server_default=SOURCE_BIOWIN, index=True
+    )
+    submitted_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
     # --- classification
     type: Mapped[str] = mapped_column(String(120), default="")
+    # Secteurs issus de BioWin. Vide pour une entreprise proposee.
     core_business: Mapped[str] = mapped_column(Text, default="")
+    # Tags saisis par l'utilisateur qui propose l'entreprise, separes par des
+    # virgules. Meme espace de noms que core_business: le filtre et la liste
+    # de facettes interrogent les deux, pour qu'il n'y ait qu'un seul
+    # vocabulaire de tags visible par tous.
+    tags: Mapped[str] = mapped_column(Text, default="", server_default="")
     other_tags: Mapped[str] = mapped_column(Text, default="")
     baseline: Mapped[str] = mapped_column(Text, default="")
     description: Mapped[str] = mapped_column(Text, default="")
@@ -135,6 +159,13 @@ class Company(Base):
     )
 
     jobs: Mapped[list[Job]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    submitted_by: Mapped[User | None] = relationship()
+
+    @property
+    def all_tags(self) -> list[str]:
+        """Tags BioWin et tags utilisateur reunis, dedoublonnes, dans l'ordre."""
+        raw = f"{self.core_business},{self.tags}"
+        return list(dict.fromkeys(t.strip() for t in raw.split(",") if t.strip()))
 
 
 class SavedCompany(Base):

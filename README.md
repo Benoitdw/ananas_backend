@@ -40,6 +40,26 @@ ananas/
 └── worker/          planification, scrape, notification
 ```
 
+### Deux provenances, un seul vocabulaire de tags
+
+`companies.source` vaut `biowin` (les 81 importees du CSV) ou `from_user`
+(proposees via `POST /api/companies`). Une entreprise proposee est une
+entreprise a part entiere: visible, filtrable et enregistrable par tous.
+
+Les secteurs BioWin vivent dans `core_business`, les tags utilisateur dans
+`tags`. Le filtre et la liste de facettes interrogent **les deux colonnes**:
+cote interface il n'y a qu'un seul vocabulaire, donc un seul filtre.
+
+Deux garde-fous rendent ce vocabulaire exploitable, sans lesquels les tags ne
+servent a rien:
+
+- `normalize_tag` (schemas.py) uniformise casse et espaces, en preservant les
+  sigles courts (IVD, CRO).
+- `_canonical_tags` (api/companies.py) rattache un tag a l'orthographe **deja
+  presente** dans le repertoire quand elle existe a la casse pres. Sans lui,
+  "Administrative & Office support" et "... Support" cohabiteraient dans le
+  filtre.
+
 ### Les deux garanties du schema
 
 - `jobs` porte une contrainte unique `(company_id, fingerprint)`. C'est elle
@@ -124,6 +144,18 @@ pytest
 Les tests couvrent le fingerprint, qui decide de ce qui est une nouvelle offre :
 s'il est instable l'utilisateur recoit tous les jours la meme offre, s'il
 collisionne il en rate.
+
+## Geocodage
+
+`ananas/geocoding.py` est porte du POC, ou la cascade avait ete mise au point
+contre les 81 adresses reelles de BioWin. Elle degrade au lieu d'echouer:
+
+    rue complete -> rue nettoyee -> ville -> code postal -> nom de la commune
+
+et retourne **comment** le point a ete place (`adresse`, `ville`,
+`approx. (nom)`, `non localise`), pour que l'interface le signale. Appelee a la
+soumission d'une entreprise (~1 s, limite de debit Nominatim oblige), avec un
+cache process-local qui retient aussi les echecs.
 
 ## Migrations
 

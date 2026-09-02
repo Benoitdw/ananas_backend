@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ORM(BaseModel):
@@ -60,6 +61,8 @@ class CompanyListItem(ORM):
     name: str
     type: str
     core_business: str
+    tags: str = ""
+    source: str = "biowin"
     city: str
     lat: float | None
     lon: float | None
@@ -75,6 +78,9 @@ class CompanyDetail(ORM):
     name: str
     type: str
     core_business: str
+    tags: str = ""
+    source: str = "biowin"
+    submitted_by_email: str | None = None
     other_tags: str
     baseline: str
     description: str
@@ -100,10 +106,100 @@ class CompanyDetail(ORM):
 
 
 class CompanyFacets(BaseModel):
-    """Valeurs distinctes pour alimenter les filtres de la sidebar."""
+    """Valeurs distinctes pour alimenter les filtres de la sidebar.
+
+    ``tags`` reunit les secteurs BioWin et les tags saisis par les
+    utilisateurs: un seul vocabulaire, donc un seul filtre.
+    """
 
     types: list[str]
+    tags: list[str]
+    # Conserve pour compatibilite: meme contenu que `tags`
     core_businesses: list[str]
+
+
+# ------------------------------------------------ soumission d'une entreprise
+
+
+MAX_TAGS = 8
+
+
+def normalize_tag(raw: str) -> str:
+    """Un tag propre, sinon la liste de facettes se remplit de quasi-doublons.
+
+    'BIOTECH ', ' biotech' et 'Biotech' doivent produire la meme entree, sans
+    quoi le filtre devient inutilisable pour les autres utilisateurs — ce qui
+    est precisement le but des tags.
+    """
+    cleaned = re.sub(r"\s+", " ", raw).strip(" ,;·-").strip()
+    if not cleaned:
+        return ""
+    # Capitalisation douce: on respecte les sigles deja en majuscules (IVD, CRO)
+    words = [w if w.isupper() and len(w) <= 5 else w.capitalize() for w in cleaned.split(" ")]
+    return " ".join(words)[:60]
+
+
+class CompanySubmitIn(BaseModel):
+    """Formulaire de proposition d'entreprise.
+
+    Seul le nom est obligatoire: exiger une adresse complete decouragerait les
+    contributions, et le geocodage sait degrader (ville seule, voire nom seul).
+    """
+
+    name: str = Field(min_length=2, max_length=255)
+    tags: list[str] = Field(default_factory=list)
+
+    website: str = ""
+    careers_url: str = ""
+    type: str = ""
+    baseline: str = Field(default="", max_length=500)
+    description: str = Field(default="", max_length=4000)
+
+    street: str = ""
+    postal_code: str = ""
+    city: str = ""
+    country: str = "Belgium"
+
+    email: str = ""
+    phone: str = ""
+    linkedin: str = ""
+
+    # Coche par defaut cote formulaire: on propose surtout une entreprise
+    # qu'on veut soi-meme suivre.
+    save: bool = True
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def _clean_tags(cls, tags: list[str]) -> list[str]:
+        seen: dict[str, None] = {}
+        for tag in tags:
+            if normalized := normalize_tag(tag):
+                seen.setdefault(normalized, None)
+        if len(seen) > MAX_TAGS:
+            raise ValueError(f"{MAX_TAGS} tags au maximum")
+        return list(seen)
+
+    @field_validator("website", "careers_url", "linkedin", mode="after")
+    @classmethod
+    def _clean_url(cls, url: str) -> str:
+        url = url.strip()
+        if url and not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+        return url[:500]
+
+    @field_validator("name", "type", "street", "postal_code", "city", "country", "email", "phone")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return value.strip()
+
+
+class SubmitConflict(BaseModel):
+    """Renvoye en 409 quand l'entreprise existe deja: le front propose alors
+    d'ouvrir la fiche existante plutot que de creer un doublon."""
+
+    detail: str
+    company_id: int
+    company_name: str
 
 
 # ------------------------------------------------------------------- canaux
