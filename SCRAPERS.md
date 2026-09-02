@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (10)
+## Fait (14)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -18,8 +18,12 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `ucb-leuven` | Phenom People | `ucb.py` | 0 (aucun poste ouvert) |
 | `sanofi-belgium` | Radancy | `sanofi.py` + `radancy.py` | 5 |
 | `abbvie-belgium` | Attrax (JSON-LD) | `abbvie.py` + `attrax.py` | 2 |
-| `pfizer-belgium` | Workday | `pfizer.py` + `workday.py` | 8 |
-| `novartis-pharma` | Workday | `novartis.py` + `workday.py` | 16 |
+| `pfizer-belgium` | Workday (facette pays) | `pfizer.py` + `workday.py` | 8 |
+| `novartis-pharma` | Workday (recherche texte) | `novartis.py` | 16 |
+| `bristol-myers-squibb` | Workday (recherche texte) | `bms.py` | 0 (aucun poste belge) |
+| `alexion-pharma-belgium` | Workday groupe AstraZeneca | `alexion.py` | 1 |
+| `roche-diagnostics` | Phenom People (`location_tokens`) | `roche.py` | 1 |
+| `msd-belgium` | Phenom People (`location_tokens`) | `msd.py` | 4 |
 
 ## Bases d'ATS reutilisables
 
@@ -27,7 +31,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 |---|---|---|
 | `qbd_group.py::TeamtailorScraper` | Teamtailor RSS | `base_url` |
 | `phenom.py::PhenomScraper` | Phenom People (`phApp.ddo`) | `base_url`, `search_params`, `town` |
-| `radancy.py::RadancyScraper` | Radancy (JSON-LD) | `base_url`, `search_path`, `countries` |
+| `radancy.py::RadancyScraper` | Radancy, liste **SSR** (JSON-LD) | `base_url`, `search_path`, `countries` |
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
 
@@ -35,25 +39,31 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 
 ### Grands groupes, ATS connu (rapide)
 
-- [ ] **`bristol-myers-squibb`** — Workday `bristolmyerssquibb.wd5` / site `BMS`.
-      Facette `Location_Country`. 0 offre belge au 2026-09-02 → scraper valide
-      mais vide ; a poser quand même (Braine-l'Alleud).
-- [ ] **`msd-belgium`** — Phenom People (`jobs.msd.com` / `msd.wd5`? à verifier).
-      MSD/Merck a un gros site. Localiser Bruxelles.
-- [ ] **`baxter`** — Workday `baxter.wd1` (à verifier tenant). Site de Lessines
-      (production) — volume probable.
-- [ ] **`catalent`** — Workday. Pas de site belge propre listé — verifier s'il
-      y a des offres BE avant de poser.
-- [ ] **`alexion-pharma-belgium`** — Workday `astrazeneca.wd3` / site `Careers`
-      (Alexion = groupe AstraZeneca). 1 offre "Belgium" au 2026-09-02.
-- [ ] **`novo-nordisk`** — ATS propre `career.novonordisk.com` (pas Workday).
-      À explorer : souvent une API JSON derriere.
-- [ ] **`boehringer-ingelheim`** — `jobs.boehringer-ingelheim.com` (ATS propre).
-- [ ] **`roche-diagnostics`** — `careers.roche.com` (ATS propre, gros).
-- [ ] **`biomerieux`** — `careers.biomerieux.com` (SmartRecruiters ? à verifier).
-- [ ] **`terumo-europe`** — HQ Leuven. `terumo-europe.com/en/careers` — ATS ?
-- [ ] **`thermo-fisher-scientific-henogen`** — `jobs.thermofisher.com` (ATS
-      propre). Site de Gosselies (ex-Henogen). Filtrer sur Gosselies/Seneffe.
+- [ ] **`baxter`** — Radancy `jobs.baxter.com` mais liste **rendue en JS** (la
+      page SSR n'expose que du contenu, pas les offres). Passer par l'endpoint
+      `/en/search-jobs/results?...` (renvoie `{"results": "<html>"}`) — mais il
+      faut la bonne `LocationFacet` : `Location=Belgium` seul ne filtre rien.
+      Site de Lessines (production) → volume attendu. `RadancyScraper` ne
+      couvre aujourd'hui que la liste SSR (Sanofi), pas cet AJAX.
+- [ ] **`catalent`** — Workday (tenant `catalent.wd5`, site `External` → 422 en
+      l'etat, chercher le bon `site`). Verifier volume BE avant de poser.
+- [ ] **`novo-nordisk`** — ATS propre (`www.novonordisk.com/careers`, DNS
+      `career.novonordisk.com` inaccessible depuis le conteneur). À explorer :
+      souvent une API JSON derriere.
+- [ ] **`boehringer-ingelheim`** — `jobs.boehringer-ingelheim.com` =
+      **SuccessFactors** (ni `phApp.ddo` ni JSON-LD en SSR). Nouvelle base à
+      écrire (`successfactors.py`) — reutilisable pour Terumo.
+- [ ] **`biomerieux`** — `careers.biomerieux.com` renvoie 403 au bot (Akamai).
+      Tester un autre User-Agent / l'API SmartRecruiters (`biomerieux`).
+- [ ] **`terumo-europe`** — HQ Leuven. `careers.terumo-europe.com` =
+      **SuccessFactors** (`/go/All-jobs_en/3867101/`). Voir base commune avec
+      Boehringer.
+- [ ] **`thermo-fisher-scientific-henogen`** — `jobs.thermofisher.com` (bloque
+      le bot en HEAD). Site de Gosselies (ex-Henogen). ATS propre — à sonder.
+- [ ] **`sgs-lab-simon`** — groupe SGS, `www.sgs.com/en/careers` (Workday
+      `sgs` probable). Site de Bierges.
+- [ ] **`bausch-lomb-pharma`** — Workday `bauschhealth.wd5` (site `External` →
+      422, chercher le bon `site`).
 
 ### Biotechs moyennes — souvent SmartRecruiters / Greenhouse / Lever / Recruitee
 
@@ -88,8 +98,9 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 ## Profils (`website` / `careers_url`) — `data/company-web.csv`
 
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
-(remplit les blancs ; `--force` pour ecraser). Au 2026-09-02 : 34/49 fiches
-`curated` ont un `website`. Restent sans site : `diasource-immunoassays`,
-`ncardia`, `inhatarget-therapeutics`, `biosenic`, `sgs-lab-simon`, `onelife`,
-`astrivax`, `montis-biosciences`, `midiagnostics`, `replasia`, `azalea-vision`,
-`qaelum`, `nelson-labs-europe`, `bausch-lomb-pharma`.
+(remplit les blancs ; `--force` pour ecraser).
+
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 14/49 ont un
+`careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
+Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
+`nelson-labs-europe`, `iteos-therapeutics`, `thermo-fisher-scientific-henogen`.

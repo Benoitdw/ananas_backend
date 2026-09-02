@@ -63,6 +63,11 @@ class PhenomScraper(BaseScraper):
     search_params: ClassVar[dict[str, str]] = {}
     # Ville a conserver apres coup (voir le piege 2)
     town: ClassVar[str] = ""
+    # Jetons de lieu supplementaires (nom de pays typiquement). Utile quand la
+    # recherche par ville est trop etroite ou absente et qu'on veut retenir
+    # tout poste ouvert dans le pays — MSD, Roche : leur ``multi_location``
+    # porte "..., Belgium" sur chaque site belge. Vide = on s'en tient a `town`.
+    location_tokens: ClassVar[frozenset[str]] = frozenset()
     # Nombre de resultats par page, impose par le site
     page_size: ClassVar[int] = 10
     # Garde-fou: au-dela, on considere que la pagination boucle
@@ -130,15 +135,19 @@ class PhenomScraper(BaseScraper):
     # -------------------------------------------------------------- filtrage
 
     def _is_local(self, job: dict[str, Any]) -> bool:
-        """La ville figure-t-elle parmi les lieux du poste ?
+        """Un des lieux du poste correspond-il au perimetre voulu ?
 
         On regarde ``multi_location`` et non ``city``: un poste ouvert a la
         fois a Londres et a Rixensart porte ``city = London`` mais concerne
-        bien le site local.
+        bien le site local. Le perimetre est ``town`` et/ou ``location_tokens``
+        (nom de pays) ; sans aucun des deux, tout est retenu.
         """
-        town = self.town.casefold()
+        needles = {self.town.casefold()} if self.town else set()
+        needles |= {tok.casefold() for tok in self.location_tokens}
+        if not needles:
+            return True
         places = job.get("multi_location") or [job.get("location", "")]
-        return any(town in (place or "").casefold() for place in places)
+        return any(n in (place or "").casefold() for place in places for n in needles)
 
     # ------------------------------------------------------------ conversion
 
