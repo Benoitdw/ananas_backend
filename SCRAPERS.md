@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (25)
+## Fait (27)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -35,6 +35,8 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `cellistic` | Site propre (`/careers/<slug>`) | `cellistic.py` + `ncardia.py` | 2 |
 | `ncardia` | Site propre (`/careers/<slug>`, filtre pays) | `ncardia.py` | 0 (1 poste a Leiden NL) |
 | `quantoom-biosciences` | Site propre WP | `quantoom.py` | 1 |
+| `univercells-technologies` | Workday groupe Donaldson (`location_tokens` Nivelles) | `univercells.py` | 2 |
+| `sobi-swedish-orphan-biovitrum` | SmartRecruiters (API, filtre pays) | `sobi.py` + `smartrecruiters.py` | 0 (0 poste belge) |
 
 ## Bases d'ATS reutilisables
 
@@ -46,6 +48,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
 | `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
+| `smartrecruiters.py::SmartRecruitersScraper` | SmartRecruiters (API publique) | `company`, `country` |
 | `ncardia.py::SlugCareersScraper` | Site "constructeur" a liens `/careers/<slug>` | `base_url`, `location_tokens` |
 
 ## A faire — priorise par volume / facilite
@@ -66,7 +69,10 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 - [x] ~~**`boehringer-ingelheim`**~~ — SuccessFactors (`successfactors.py`).
 - [x] ~~**`terumo-europe`**~~ — SuccessFactors, meme base.
 - [ ] **`biomerieux`** — `careers.biomerieux.com` renvoie 403 au bot (Akamai).
-      Tester un autre User-Agent / l'API SmartRecruiters (`biomerieux`).
+      SmartRecruiters mais l'identifiant `biomerieux` ne renvoie rien via l'API
+      publique (l'entreprise a un id SR different / prive). À retrouver.
+- [x] ~~**`sobi-swedish-orphan-biovitrum`**~~ — SmartRecruiters (`Sobi`), API
+      publique, filtre `country=be` (0 poste belge au 2026-09-02).
 - [x] ~~**`thermo-fisher-scientific-henogen`**~~ — Phenom (`jobs.thermofisher.com`),
       filtre `location_tokens` Gosselies/Seneffe (43 postes BE groupe → 3 locaux).
 - [ ] **`sgs-lab-simon`** — groupe SGS. Workday `sgs.wd3` repond 401 (compte
@@ -100,10 +106,13 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [ ] `qaelum` — Leuven. Liste rendue en JS + emails anti-spam. À sonder.
 - [ ] `icometrix` — Leuven. `icometrix.com/company/careers` (l'ancienne URL est
       en 404). Souvent Recruitee.
-- [ ] `iteos-therapeutics` / `univercells-technologies` / `exothera` / `iba` /
-      `precirix` — injoignables depuis le conteneur (voir note ci-dessus ;
-      `data/company-web.csv` a des domaines corriges — `univercellstech.com`,
-      `exothera.com` — a retester).
+- [x] ~~`univercells-technologies`~~ — rachetee par Donaldson, offres sur le
+      Workday `donaldson.wd115`, filtre `location_tokens` Nivelles → 2 offres.
+- [ ] `iteos-therapeutics` / `exothera` / `iba` / `precirix` — injoignables
+      depuis le conteneur (voir note ci-dessus ; `data/company-web.csv` a
+      `exothera.com` corrige — a retester hors conteneur).
+- [ ] `diasource-immunoassays` — LLN. Candidature par email, aucune offre
+      listee. Basse prio.
 
 ### Petites structures — verifier qu'il y a une page carrieres exploitable
 
@@ -121,7 +130,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 25/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 28/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
 `iteos-therapeutics`.
