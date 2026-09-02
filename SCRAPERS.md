@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (22)
+## Fait (25)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -32,6 +32,9 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `prothya-biosolutions` | Site propre WP (pages departement) | `prothya.py` | 15 |
 | `galactic` | TalentFinder (JSON-LD) | `galactic.py` | 1 |
 | `novadip-biosciences` | Site propre WP | `novadip.py` | 1 |
+| `cellistic` | Site propre (`/careers/<slug>`) | `cellistic.py` + `ncardia.py` | 2 |
+| `ncardia` | Site propre (`/careers/<slug>`, filtre pays) | `ncardia.py` | 0 (1 poste a Leiden NL) |
+| `quantoom-biosciences` | Site propre WP | `quantoom.py` | 1 |
 
 ## Bases d'ATS reutilisables
 
@@ -43,6 +46,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
 | `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
+| `ncardia.py::SlugCareersScraper` | Site "constructeur" a liens `/careers/<slug>` | `base_url`, `location_tokens` |
 
 ## A faire — priorise par volume / facilite
 
@@ -84,9 +88,11 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
       (`careers-be.prothya.com`), parcours des pages departement → 15 offres.
 - [x] ~~`galactic`~~ — Bruxelles. ATS TalentFinder, fiches en JSON-LD → 1 offre.
 - [x] ~~`novadip-biosciences`~~ — Mont-Saint-Guibert. Site propre WP → 1 offre.
-- [ ] `ncardia` — Gosselies. Site propre (`/careers/<slug>`). Au 2026-09-02 :
-      1 poste, a Leiden (NL) — 0 en Belgique. Scraper a poser avec filtre lieu.
+- [x] ~~`ncardia`~~ / ~~`cellistic`~~ — meme gabarit de site (`SlugCareersScraper`).
+      Ncardia 0 en BE (1 a Leiden), Cellistic 2.
+- [x] ~~`quantoom-biosciences`~~ — site WP `/job-application/` → 1 offre.
 - [ ] `celyad-oncology` — 0 poste annoncé, candidature par email. Basse prio.
+- [ ] `montis-biosciences` — Leuven. Site propre, aucune offre affichee. Basse prio.
 - [ ] `realco` — Louvain-la-Neuve. Site propre. Au 2026-09-02 : 1 poste
       (Allemagne, remote) — 0 local. Basse prio.
 - [ ] `kantify` — Bruxelles. Aucune offre listee (page "rejoignez-nous" sans
@@ -94,9 +100,10 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [ ] `qaelum` — Leuven. Liste rendue en JS + emails anti-spam. À sonder.
 - [ ] `icometrix` — Leuven. `icometrix.com/company/careers` (l'ancienne URL est
       en 404). Souvent Recruitee.
-- [ ] `iteos-therapeutics` / `univercells-technologies` / `exothera` /
-      `quantoom-biosciences` / `cellistic` / `iba` / `precirix` — injoignables
-      depuis le conteneur (voir note ci-dessus).
+- [ ] `iteos-therapeutics` / `univercells-technologies` / `exothera` / `iba` /
+      `precirix` — injoignables depuis le conteneur (voir note ci-dessus ;
+      `data/company-web.csv` a des domaines corriges — `univercellstech.com`,
+      `exothera.com` — a retester).
 
 ### Petites structures — verifier qu'il y a une page carrieres exploitable
 
@@ -114,7 +121,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 22/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 25/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
 `iteos-therapeutics`.
