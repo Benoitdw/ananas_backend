@@ -329,15 +329,33 @@ Meme principe dans `ananas/notifiers/` : sous-classe `BaseNotifier`, decore avec
 `@register`, implemente `send`, `send_test` et `validate_target`. Le worker
 resout le transport depuis `notification_channels.type`, il n'a pas a etre modifie.
 
+### Entreprises suivies sans scraper
+
+Une notification envoyee ajoute un pied de page listant les entreprises
+suivies dont aucune offre n'a pu etre relevee automatiquement —
+`scraper_key` vide, ou renseignee mais absente du registre (module retire ou
+en erreur au chargement). Sans lui, un silence sur cette entreprise se
+confondrait avec "rien de nouveau" ; le pied de page invite a aller regarder
+sa page carrieres a la main.
+
+`ananas/worker/notify.py:unscraped_saved_companies` calcule la liste,
+`Digest.unscraped_companies` la transporte jusqu'au notifier. Ce n'est jamais
+un message a lui seul : la regle "rien de nouveau, aucun message" s'applique
+toujours a l'ensemble du digest.
+
 ## CLI du worker
 
 ```bash
-python -m ananas.worker.main                        # daemon, passe quotidienne
-python -m ananas.worker.main --now                  # scrape + notifie maintenant
+python -m ananas.worker.main                        # daemon, deux passes planifiees (minuit + 7h)
+python -m ananas.worker.main --now                  # scrape + extraction en direct + notifie, tout de suite
 python -m ananas.worker.main --scrape-only --company qbd-group
 python -m ananas.worker.main --notify-only
 python -m ananas.worker.main --list-scrapers
 ```
+
+`--now` et les autres flags restent entierement synchrones (voir "Extraction
+des offres, en direct ou par lot" plus haut) : ils ne passent jamais par le
+mode lot, pour une reponse immediate.
 
 ## Tests
 

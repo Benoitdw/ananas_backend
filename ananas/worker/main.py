@@ -120,8 +120,16 @@ def morning_job() -> None:
             if collected:
                 log.info("%d offres caracterisees par lot avant la notification", collected)
 
+        # Uniquement un run *termine*: un scrape interrompu (worker tue en
+        # plein milieu, par exemple) laisse un ScrapeRun sans finished_at, et
+        # son started_at ne doit pas devenir la reference "depuis quand
+        # notifier" — certaines entreprises n'auraient meme pas ete
+        # rescrapees ce soir-la.
         latest = db.scalars(
-            select(ScrapeRun).order_by(ScrapeRun.started_at.desc()).limit(1)
+            select(ScrapeRun)
+            .where(ScrapeRun.finished_at.is_not(None))
+            .order_by(ScrapeRun.started_at.desc())
+            .limit(1)
         ).first()
         since = None
         if latest is not None and _has_previous_run(db, before=latest.started_at):
