@@ -75,6 +75,17 @@ class TelegramNotifier(BaseNotifier):
                 lines.append(f'  • <a href="{html.escape(job.url, quote=True)}">{title}</a>{suffix}')
             lines.append("")
 
+        if digest.unscraped_companies:
+            # Signale plutot que de laisser croire que "aucune offre" veut
+            # dire "rien de nouveau chez elles": ces entreprises ne sont
+            # simplement pas surveillees automatiquement.
+            names = ", ".join(html.escape(c) for c in digest.unscraped_companies)
+            plural = "s" if len(digest.unscraped_companies) > 1 else ""
+            lines.append(
+                f"🔍 Pas encore de veille automatique chez : {names}. "
+                f"Un coup d'œil manuel a leur page carriere{plural} peut valoir le coup."
+            )
+
         return self._truncate("\n".join(lines).strip())
 
     @staticmethod

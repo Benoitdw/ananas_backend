@@ -41,8 +41,15 @@ class Settings(BaseSettings):
     match_threshold_default: int = 55
 
     # --- worker
-    scrape_cron_hour: int = 6
+    # Passe de scrape + soumission du lot d'extraction (voir ananas.ai.service).
+    # Par defaut minuit: laisse toute la nuit au lot pour se terminer avant la
+    # notification du matin — dont l'heure est independante, voir
+    # notify_cron_hour/minute.
+    scrape_cron_hour: int = 0
     scrape_cron_minute: int = 0
+    # Recolte du lot (partielle si besoin) + notification quotidienne.
+    notify_cron_hour: int = 7
+    notify_cron_minute: int = 0
     timezone: str = "Europe/Brussels"
     # Pause entre deux entreprises scrapees, en secondes
     scrape_delay: float = 1.0

@@ -12,13 +12,20 @@ listes de competences en minuscules), ce qui rend la comparaison possible en
 Python pur — voir ``ananas.ai.matching``. C'est ce decoupage qui evite un cout
 en N_utilisateurs x N_offres, et qui fait qu'un modele local n'aurait a
 remplacer que cette etape-ci.
+
+``build_job_request`` assemble le triplet (system, prompt, schema) d'une offre
+sans appeler le modele, et ``finalize_job_data`` nettoie une reponse brute:
+c'est ce qui permet a l'extraction des offres de partir soit en appel direct
+(``extract_job``), soit en lot (``ananas.ai.service.submit_extraction_batch``)
+sans dupliquer le prompt ni le nettoyage. Le profil, lui, reste toujours en
+appel direct: l'utilisateur attend son resultat a l'ecran.
 """
 
 from __future__ import annotations
 
 import logging
 
-from ananas.ai.base import LLMError
+from ananas.ai.base import BatchItem, LLMError
 from ananas.ai.registry import get_provider
 
 log = logging.getLogger(__name__)
@@ -115,12 +122,15 @@ def _clean(values: list[str]) -> list[str]:
     return list(dict.fromkeys(v.strip().lower() for v in values if v and v.strip()))
 
 
-def extract_job(*, title: str, company: str, location: str, department: str, description: str) -> dict:
-    """Caracteristiques d'une offre. Leve LLMError si le modele echoue."""
-    provider = get_provider()
-    if provider is None:
-        raise LLMError("Aucun fournisseur de modele configure")
+def build_job_request(
+    *, title: str, company: str, location: str, department: str, description: str
+) -> BatchItem:
+    """Le triplet (system, prompt, schema) d'une offre, sans appeler le modele.
 
+    Separe de ``extract_job`` pour servir aussi bien l'appel synchrone que la
+    soumission par lot (``ananas.ai.service.submit_extraction_batch``): les
+    deux chemins doivent construire exactement la meme requete.
+    """
     prompt = "\n".join(
         [
             f"Entreprise: {company}",
@@ -132,12 +142,33 @@ def extract_job(*, title: str, company: str, location: str, department: str, des
             (description or "").strip()[:12000] or "(aucune description publiee)",
         ]
     )
-    data = provider.complete_json(system=JOB_SYSTEM, prompt=prompt, schema=JOB_SCHEMA)
+    return BatchItem(system=JOB_SYSTEM, prompt=prompt, schema=JOB_SCHEMA)
 
+
+def finalize_job_data(data: dict) -> dict:
+    """Normalise la reponse brute du modele: listes en minuscules dedoublonnees,
+    role_family en minuscules. Meme traitement, que la reponse vienne d'un
+    appel direct ou d'un lot recolte plus tard."""
     for key in ("skills", "nice_to_have", "domains", "languages", "locations"):
         data[key] = _clean(data.get(key) or [])
     data["role_family"] = (data.get("role_family") or "").strip().lower()
     return data
+
+
+def extract_job(*, title: str, company: str, location: str, department: str, description: str) -> dict:
+    """Caracteristiques d'une offre, en temps reel. Leve LLMError si le
+    modele echoue. Repli synchrone quand le fournisseur ne fait pas de lot —
+    voir ``ananas.ai.service.extract_job_features``."""
+    provider = get_provider()
+    if provider is None:
+        raise LLMError("Aucun fournisseur de modele configure")
+
+    item = build_job_request(
+        title=title, company=company, location=location, department=department,
+        description=description,
+    )
+    data = provider.complete_json(system=item.system, prompt=item.prompt, schema=item.schema)
+    return finalize_job_data(data)
 
 
 def extract_profile(*, cv: str, aspirations: str) -> dict:

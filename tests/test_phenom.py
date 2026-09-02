@@ -20,7 +20,7 @@ class FakeGsk(PhenomScraper):
     base_url = "https://jobs.example.com"
     locale_path = "be/fr"
     town = "Rixensart"
-    search_location = "Rixensart, Brabant wallon, Belgique"
+    search_params = {"m": "3", "location": "Rixensart, Brabant wallon, Belgique"}
     rate_limit = 0
 
 
@@ -129,14 +129,40 @@ def test_date_invalide_ignoree():
 # ---------------------------------------------------------------- registre
 
 
-@pytest.mark.parametrize("key", ["gsk-wavre", "gsk-rixensart"])
-def test_scrapers_gsk_enregistres(key):
+@pytest.mark.parametrize(
+    "key", ["gsk-wavre", "gsk-rixensart", "ucb-anderlecht", "ucb-pharma-braine-l-alleud"]
+)
+def test_scrapers_phenom_enregistres(key):
     load_scrapers()
     cls = get_scraper(key)
     assert cls is not None
     # La cle doit egaler le slug de l'entreprise pour l'auto-liage du seed
     assert cls.key == key
-    assert cls.town and cls.search_location
+    assert cls.town and cls.search_params
+
+
+def test_chaque_instance_a_son_mode_de_recherche():
+    """GSK filtre par proximite (m=3&location), UCB par triplet structure
+    (qcity/qstate/qcountry). Confondre les deux renvoie zero resultat."""
+    load_scrapers()
+    assert "location" in get_scraper("gsk-wavre").search_params
+    assert "qcity" in get_scraper("ucb-anderlecht").search_params
+
+
+def test_orthographe_ucb_de_braine_preservee():
+    """UCB ecrit "Braine L'alleud" sans trait d'union: toute "correction"
+    renvoie zero resultat."""
+    load_scrapers()
+    scraper = get_scraper("ucb-pharma-braine-l-alleud")
+    assert scraper.search_params["qcity"] == "Braine L'alleud"
+    assert scraper.town == "Braine L'alleud"
+
+
+def test_url_de_recherche_encode_les_parametres():
+    url = FakeGsk()._search_url(20)
+    assert url.startswith("https://jobs.example.com/be/fr/search-results?")
+    assert "m=3" in url and "from=20" in url
+    assert " " not in url  # les espaces doivent etre encodes
 
 
 def test_les_deux_sites_sont_distincts():

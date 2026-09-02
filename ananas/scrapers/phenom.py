@@ -5,14 +5,18 @@ rendus en JavaScript, mais le serveur embarque l'etat initial dans un objet
 ``phApp.ddo`` : on y trouve les resultats de recherche complets, sans avoir a
 piloter un navigateur.
 
-Deux pieges specifiques a Phenom, tous deux traites ici :
+Trois pieges specifiques a Phenom, tous traites ici :
 
-1. **La recherche par lieu est une recherche de proximite, pas un filtre.**
-   Interroger "Rixensart" renvoie aussi des postes a Londres ou Collegeville.
-   Une sous-classe doit donc declarer la ville attendue, et le filtrage se fait
-   sur ``multi_location`` — un poste ouvert a la fois a Londres et a Rixensart
-   est legitimement retenu, ce que le champ ``city`` seul ferait manquer.
-2. **La liste ne contient qu'un extrait de description.** L'annonce complete
+1. **Chaque instance filtre les lieux a sa facon.** GSK accepte
+   ``m=3&location=<ville>``, une recherche de *proximite*; UCB ignore ce
+   parametre et attend ``qcity/qstate/qcountry``, un filtre exact. D'ou
+   ``search_params``, un dictionnaire libre que chaque sous-classe fournit.
+2. **La recherche de proximite n'est pas un filtre.** Interroger "Rixensart"
+   renvoie aussi des postes a Londres ou Collegeville. ``town`` sert donc au
+   filtrage effectif, sur ``multi_location`` — un poste ouvert a la fois a
+   Londres et a Rixensart est legitimement retenu, ce que le champ ``city``
+   seul ferait manquer.
+3. **La liste ne contient qu'un extrait de description.** L'annonce complete
    n'est que sur la fiche, qu'il faut donc ouvrir une par une.
 """
 
@@ -46,16 +50,18 @@ REMOTE = {
 
 
 class PhenomScraper(BaseScraper):
-    """Sous-classer et definir ``key``, ``base_url``, ``search_location`` et
+    """Sous-classer et definir ``key``, ``base_url``, ``search_params`` et
     ``town``. Ne pas enregistrer cette classe: elle n'a pas de ``key``."""
 
     # Racine du site, ex. "https://jobs.gsk.com"
     base_url: ClassVar[str] = ""
     # Segment de langue du site, ex. "be/fr"
     locale_path: ClassVar[str] = ""
-    # Valeur du parametre `location`, telle que le site l'attend
-    search_location: ClassVar[str] = ""
-    # Ville a conserver apres coup (voir le piege 1)
+    # Parametres de recherche, propres a chaque instance Phenom (voir piege 1).
+    # Ex. {"m": "3", "location": "Wavre, Brabant wallon, Belgique"}
+    #  ou {"qcity": "Anderlecht", "qstate": "Brussels", "qcountry": "Belgium"}
+    search_params: ClassVar[dict[str, str]] = {}
+    # Ville a conserver apres coup (voir le piege 2)
     town: ClassVar[str] = ""
     # Nombre de resultats par page, impose par le site
     page_size: ClassVar[int] = 10
@@ -103,8 +109,9 @@ class PhenomScraper(BaseScraper):
 
     def _search_url(self, offset: int) -> str:
         base = f"{self.base_url.rstrip('/')}/{self.locale_path.strip('/')}/search-results"
-        # m=3 : mode de recherche par lieu, impose par le site
-        return f"{base}?m=3&location={quote(self.search_location)}&from={offset}"
+        params = {**self.search_params, "from": str(offset)}
+        query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
+        return f"{base}?{query}"
 
     def _ddo(self, url: str) -> dict[str, Any]:
         """Etat initial embarque dans la page."""

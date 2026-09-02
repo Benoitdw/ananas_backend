@@ -54,6 +54,12 @@ class JobWithCompany(JobOut):
     company_id: int
     company_name: str
     company_slug: str
+    # False quand l'offre vient d'une entreprise que l'utilisateur ne suit
+    # pas encore (feed "toutes les entreprises", voir GET /api/me/jobs?scope=all)
+    company_saved: bool = True
+    # L'utilisateur a explicitement ecarte cette offre. Absente du feed par
+    # defaut (voir include_hidden), presente quand on demande a les revoir.
+    is_hidden: bool = False
 
 
 # ---------------------------------------------------------------- entreprises

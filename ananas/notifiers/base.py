@@ -9,7 +9,7 @@ Le worker n'a pas a etre modifie: il resout le notifier depuis
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 
@@ -40,6 +40,11 @@ class Digest:
 
     # {nom de l'entreprise: [offres]}, dans l'ordre d'affichage voulu
     companies: dict[str, list[JobLine]]
+    # Entreprises suivies mais sans scraper (ou dont la cle ne resout plus):
+    # aucune offre n'a pu etre relevee automatiquement. Affiche en pied de
+    # notification pour inviter a aller regarder a la main — voir
+    # ``ananas.worker.notify.send_daily_digests``. Vide la plupart du temps.
+    unscraped_companies: list[str] = field(default_factory=list)
 
     @property
     def job_count(self) -> int:

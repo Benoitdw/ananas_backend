@@ -290,6 +290,41 @@ class JobFeatures(Base):
         }
 
 
+class ExtractionBatch(Base):
+    """Un lot de caracterisation d'offres soumis au fournisseur de modele.
+
+    Soumis vers minuit, recolte au matin (voir ``ananas.ai.service`` et
+    ``ananas.worker.main``). Persiste plutot que garde en memoire: le worker
+    tourne en demon, mais un redemarrage entre les deux passes ne doit ni
+    perdre le lot en cours ni le resoumettre en double — d'ou aussi
+    ``job_ids``, qui sert a exclure ces offres d'un nouveau lot tant que
+    celui-ci n'est pas recolte.
+    """
+
+    __tablename__ = "extraction_batches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Cle du BaseLLM ayant soumis le lot (voir ai/registry.py)
+    provider: Mapped[str] = mapped_column(String(32))
+    # Identifiant renvoye par le fournisseur (ex. "batches/xxxxx" chez Gemini)
+    provider_batch_id: Mapped[str] = mapped_column(String(255))
+    # Offres soumises, dans l'ordre exact envoye au fournisseur: les resultats
+    # d'un lot inline reviennent alignes par position, pas par cle.
+    job_ids: Mapped[list] = mapped_column(JSON, default=list)
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # 'pending' -> 'collected' (resultats appliques, meme partiellement) ou
+    # 'failed' (lot entier perdu: JOB_STATE_FAILED/CANCELLED/EXPIRED chez
+    # Gemini). Dans les deux cas les offres non caracterisees repartent
+    # naturellement dans le prochain lot, puisqu'elles restent sans
+    # JobFeatures.
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", server_default="pending", index=True
+    )
+    collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class UserProfile(Base):
     """CV et aspirations d'un utilisateur, plus leur forme structuree.
 
@@ -351,6 +386,29 @@ class JobMatch(Base):
     # Version du profil ayant servi au calcul: un score plus ancien est perime
     profile_version: Mapped[int] = mapped_column(Integer, default=0)
     computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class HiddenJob(Base):
+    """Une offre que l'utilisateur a explicitement ecartee.
+
+    Meme forme que ``SavedCompany``: la PK composite (user_id, job_id) rend le
+    masquage idempotent (le cacher deux fois n'est pas une erreur) et sert
+    directement de test d'appartenance dans le filtre de ``GET /api/me/jobs``.
+
+    N'affecte que l'affichage. La notification quotidienne ne repose pas sur
+    cette table: c'est ``sent_job_notifications`` qui garantit deja qu'une
+    offre n'est jamais notifiee deux fois, masquee ou non.
+    """
+
+    __tablename__ = "hidden_jobs"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    hidden_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 

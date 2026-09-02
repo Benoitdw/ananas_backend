@@ -4,6 +4,12 @@ Regle produit: on ne notifie que les offres *nouvelles*, et seulement pour les
 entreprises que l'utilisateur a enregistrees. Rien de nouveau = aucun message
 (pas de "rien a signaler" quotidien).
 
+Une notification envoyee ajoute un pied de page listant les entreprises
+suivies sans scraper: leurs offres ne peuvent pas etre relevees toutes seules,
+et le seul moyen de le savoir sinon serait de fouiller la carte. Ce pied de
+page n'est jamais un message a lui seul — la regle "rien de nouveau, aucun
+message" reste entiere.
+
 Quand l'utilisateur a renseigne un profil, les offres sont triees par score de
 correspondance et celles sous son seuil sont ecartees s'il l'a demande. Une
 offre encore non caracterisee n'est jamais ecartee: on prefere un message de
@@ -36,6 +42,7 @@ from ananas.models import (
 )
 from ananas.notifiers.base import Digest, JobLine, NotifierError
 from ananas.notifiers.registry import get_notifier, load_notifiers
+from ananas.scrapers.registry import get_scraper
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +85,7 @@ def send_daily_digests(db: Session, since: datetime | None = None) -> NotifyRepo
         if not jobs:
             continue
 
-        digest = build_digest(jobs)
+        digest = build_digest(jobs, unscraped=unscraped_saved_companies(db, user_id))
         delivered = False
 
         for channel in user_channels:
@@ -147,7 +154,28 @@ def pending_jobs(
     return rows
 
 
-def build_digest(jobs: list[tuple[Job, Company, int | None]]) -> Digest:
+def unscraped_saved_companies(db: Session, user_id: int) -> list[str]:
+    """Entreprises suivies sans scraper qui fonctionne — ``scraper_key`` vide,
+    ou renseigne mais introuvable dans le registre (cle perimee, module en
+    erreur au chargement). Leurs offres ne sont jamais relevees toutes
+    seules: c'est ce que la notification signale, pour que l'utilisateur
+    sache ou aller regarder a la main plutot que de croire que "silence" veut
+    dire "aucune offre".
+    """
+    stmt = (
+        select(Company.name, Company.scraper_key)
+        .join(SavedCompany, SavedCompany.company_id == Company.id)
+        .where(SavedCompany.user_id == user_id)
+        .order_by(Company.name)
+    )
+    return [
+        name for name, scraper_key in db.execute(stmt) if not scraper_key or get_scraper(scraper_key) is None
+    ]
+
+
+def build_digest(
+    jobs: list[tuple[Job, Company, int | None]], unscraped: list[str] | None = None
+) -> Digest:
     """Regroupe par entreprise, en conservant l'ordre de pertinence.
 
     Le rendu concret appartient a chaque notifier.
@@ -157,4 +185,4 @@ def build_digest(jobs: list[tuple[Job, Company, int | None]]) -> Digest:
         companies.setdefault(company.name, []).append(
             JobLine(title=job.title, url=job.url, location=job.location, score=score)
         )
-    return Digest(companies=companies)
+    return Digest(companies=companies, unscraped_companies=unscraped or [])

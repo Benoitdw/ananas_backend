@@ -28,7 +28,8 @@ class GskWavreScraper(GskScraper):
     key = "gsk-wavre"
     label = "GSK — Wavre"
     town = "Wavre"
-    search_location = "Wavre, Brabant wallon, Belgique"
+    # m=3 : recherche par proximite, seul mode accepte par cette instance
+    search_params = {"m": "3", "location": "Wavre, Brabant wallon, Belgique"}
     careers_url = (
         "https://jobs.gsk.com/be/fr/search-results"
         "?m=3&location=Wavre%2C%20Brabant%20wallon%2C%20Belgique"
@@ -40,7 +41,7 @@ class GskRixensartScraper(GskScraper):
     key = "gsk-rixensart"
     label = "GSK — Rixensart"
     town = "Rixensart"
-    search_location = "Rixensart, Brabant wallon, Belgique"
+    search_params = {"m": "3", "location": "Rixensart, Brabant wallon, Belgique"}
     careers_url = (
         "https://jobs.gsk.com/be/fr/search-results"
         "?m=3&location=Rixensart%2C%20Brabant%20wallon%2C%20Belgique"

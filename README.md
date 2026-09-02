@@ -175,13 +175,14 @@ Si la cle ne peut pas egaler le slug, renseigne `companies.scraper_key` a la mai
 - Une exception levee dans `fetch()` marque l'entreprise en erreur et laisse le
   reste du run continuer. Surtout, aucune offre n'est fermee ce jour-la.
 
-Deux familles d'ATS sont deja factorisees, chacune reutilisable pour une autre
+Trois familles d'ATS sont deja factorisees, chacune reutilisable pour une autre
 entreprise en quelques lignes :
 
 | module | ATS | entreprises | ce qu'il faut declarer |
 |---|---|---|---|
 | `qbd_group.py` | Teamtailor (flux RSS) | QbD Group | `base_url` |
 | `phenom.py` + `gsk.py` | Phenom People (`phApp.ddo`) | GSK Wavre, GSK Rixensart | `base_url`, `search_location`, `town` |
+| `attrax.py` + `abbvie.py` | Attrax (JSON-LD `JobPosting`) | AbbVie Belgium | `base_url`, `country` |
 
 **Piege Phenom, non evident.** La recherche par lieu de ces sites est une
 recherche de *proximite*, pas un filtre : interroger « Rixensart » renvoie une
@@ -192,6 +193,15 @@ en concernant bien le site local.
 
 Ces sites sont rendus en JavaScript, mais le serveur embarque l'etat initial
 dans `phApp.ddo` : aucun navigateur headless n'est necessaire.
+
+**Attrax, plus simple : pas de piege de proximite.** Le filtre `li=<code
+pays>` est un filtre exact — un poste liste pour `li=BE` est bien en Belgique,
+aucun post-filtrage requis. La liste ne rend que des vignettes (titre, lieu) ;
+la fiche embarque un bloc `<script type="application/ld+json">` au format
+schema.org `JobPosting` avec titre, lieu, description complete, date de
+publication et un identifiant stable — un vocabulaire fixe par la
+specification, plus robuste que des classes CSS maison qui changent a chaque
+refonte du theme.
 
 ## Correspondance offre / profil
 
@@ -236,22 +246,60 @@ rien ne le signale.
 
 ### Changer de fournisseur
 
-`ananas/ai/base.py` ne demande qu'une capacite : `complete_json(system, prompt,
-schema)`. Ajouter un modele local = une sous-classe de `BaseLLM` decoree
-`@register` dans `ananas/ai/`, puis `AI_PROVIDER=<cle>` dans le `.env`. Le
-scoring, les modeles de donnees, le worker et l'interface ne bougent pas.
+`ananas/ai/base.py` ne demande qu'une capacite obligatoire :
+`complete_json(system, prompt, schema)`. Ajouter un modele local = une
+sous-classe de `BaseLLM` decoree `@register` dans `ananas/ai/`, puis
+`AI_PROVIDER=<cle>` dans le `.env`. Le scoring, les modeles de donnees, le
+worker et l'interface ne bougent pas — sauf le mode lot ci-dessous, qui est
+optionnel.
 
-### Declencheurs de recalcul
+### Extraction des offres, en direct ou par lot
 
-- une offre gagne des caracteristiques -> scoree pour tous les profils prets ;
-- un profil est (re)extrait -> toutes les offres sont rescorees pour lui.
+Deux vitesses pour la meme extraction, choisies par l'appelant
+(`ananas/ai/service.py`) :
 
-Le worker extrait les caracteristiques manquantes juste apres le scrape, avant
-la notification : sinon le tri par pertinence n'aurait rien a trier.
+- **En direct** (`extract_missing_features`) — un appel modele par offre,
+  reponse immediate. Utilise par les commandes interactives
+  (`--extract-only`, `--now`, et le flux habituel d'ajout d'un scraper :
+  `--scrape-only` puis verification) : une reponse tout de suite compte plus
+  que le cout quand quelqu'un attend a l'ecran, y compris quand un tout
+  nouveau scraper ramene d'un coup son historique complet.
+- **Par lot** (`submit_extraction_batch` / `collect_extraction_batches`) —
+  toutes les offres manquantes en une seule requete `batchGenerateContent`
+  chez Gemini, a moitie prix, mais sans delai garanti (cible officielle 24h,
+  en pratique souvent bien plus rapide). Reserve au cycle automatique du
+  worker, personne n'y attend a l'ecran.
+
+C'est une capacite **optionnelle** de `BaseLLM`
+(`supports_batch`/`submit_batch`/`poll_batch`, meme principe que
+`read_document`) : un fournisseur qui ne la propose pas continue de
+fonctionner, le worker retombe alors sur l'extraction en direct.
+
+**Le cycle automatique tient sur deux passes planifiees, pas une** (voir
+`ananas/worker/main.py`) :
+
+| heure par defaut | passe | fait quoi |
+|---|---|---|
+| minuit (`SCRAPE_CRON_HOUR/MINUTE`) | `midnight_job` | scrape, puis soumet un lot pour tout ce qui manque de caracteristiques |
+| 7h (`NOTIFY_CRON_HOUR/MINUTE`) | `morning_job` | recolte le lot — tel quel s'il n'est pas fini — puis notifie |
+
+Toute la nuit separe les deux, pour laisser sa chance au lot. `morning_job`
+**ne l'attend pas** : un lot pas termine a 7h laisse ses offres sans
+caracteristiques, elles restent visibles dans la notification (simplement non
+triees, en fin de liste) plutot que de retarder tout le monde — et repartent
+d'elles-memes dans le lot de la nuit suivante, puisqu'elles restent sans
+`job_features`. `ExtractionBatch.job_ids` retient quelles offres sont deja
+"en vol" pour ne pas les soumettre deux fois pendant qu'on attend.
 
 ```bash
-python -m ananas.worker.main --extract-only
+python -m ananas.worker.main --extract-only   # extraction en direct, hors cron
 ```
+
+**Declencheurs de recalcul du score**, inchanges par le mode lot :
+
+- une offre gagne des caracteristiques (en direct ou par lot) -> scoree pour
+  tous les profils prets ;
+- un profil est (re)extrait -> toutes les offres sont rescorees pour lui.
 
 ## Liaison Telegram
 
