@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (27)
+## Fait (28)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -37,6 +37,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `quantoom-biosciences` | Site propre WP | `quantoom.py` | 1 |
 | `univercells-technologies` | Workday groupe Donaldson (`location_tokens` Nivelles) | `univercells.py` | 2 |
 | `sobi-swedish-orphan-biovitrum` | SmartRecruiters (API, filtre pays) | `sobi.py` + `smartrecruiters.py` | 0 (0 poste belge) |
+| `baxter` | Workday (`baxter.wd1`) | `baxter.py` | 0 (aucun poste belge publie) |
 
 ## Bases d'ATS reutilisables
 
@@ -55,17 +56,20 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 
 ### Grands groupes, ATS connu (rapide)
 
-- [ ] **`baxter`** — Radancy `jobs.baxter.com` mais liste **rendue en JS** (la
-      page SSR n'expose que du contenu, pas les offres). Passer par l'endpoint
-      `/en/search-jobs/results?...` (renvoie `{"results": "<html>"}`) — mais il
-      faut la bonne `LocationFacet` : `Location=Belgium` seul ne filtre rien.
-      Site de Lessines (production) → volume attendu. `RadancyScraper` ne
-      couvre aujourd'hui que la liste SSR (Sanofi), pas cet AJAX.
+- [x] ~~**`baxter`**~~ — le portail `jobs.baxter.com` (Radancy en vitrine) est
+      alimente par le Workday `baxter.wd1` / site `baxter`. Au 2026-09-02 : la
+      facette pays ne liste **aucune** valeur "Belgium", `searchText=Belgium`
+      = 0. Baxter ne publie pas Lessines/Braine-l'Alleud en ligne. Scraper
+      Workday pose (comme BMS) — remontera les offres des qu'il y en aura.
 - [x] ~~**`catalent`**~~ — Phenom People (`careers.catalent.com`, `us/en`).
       Aucun site belge : `qcountry=Belgium` = 0 poste. Scraper pose (comme BMS).
-- [ ] **`novo-nordisk`** — ATS propre (`www.novonordisk.com/careers`, DNS
-      `career.novonordisk.com` inaccessible depuis le conteneur). À explorer :
-      souvent une API JSON derriere.
+- [ ] **`novo-nordisk`** — `careers.novonordisk.com` = SuccessFactors RMK
+      (jobs2web / `j2w`). L'endpoint `tile-search-results/?q=&startrow=0` rend
+      des `li.job-tile` (100/page) **mais n'accepte aucun filtre de lieu**
+      (tout parametre supplementaire → reponse vide) et les vignettes ne
+      portent ni lieu ni total. Il faudrait crawler tout le catalogue mondial
+      puis ouvrir chaque fiche pour filtrer — trop lourd/fragile. À reprendre
+      si Novo expose un site belge ou une API JSON.
 - [x] ~~**`boehringer-ingelheim`**~~ — SuccessFactors (`successfactors.py`).
 - [x] ~~**`terumo-europe`**~~ — SuccessFactors, meme base.
 - [ ] **`biomerieux`** — `careers.biomerieux.com` renvoie 403 au bot (Akamai).
@@ -104,8 +108,10 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [ ] `kantify` — Bruxelles. Aucune offre listee (page "rejoignez-nous" sans
       postes). Basse prio.
 - [ ] `qaelum` — Leuven. Liste rendue en JS + emails anti-spam. À sonder.
-- [ ] `icometrix` — Leuven. `icometrix.com/company/careers` (l'ancienne URL est
-      en 404). Souvent Recruitee.
+- [ ] `icometrix` — Leuven. Site Wix, aucune page carrieres publique ;
+      rachat par GE HealthCare annonce. Basse prio.
+- [ ] `astrivax` — Leuven. `astrivax.com/vacancies/` : aucune offre ouverte
+      (candidature spontanee seulement). Basse prio.
 - [x] ~~`univercells-technologies`~~ — rachetee par Donaldson, offres sur le
       Workday `donaldson.wd115`, filtre `location_tokens` Nivelles → 2 offres.
 - [ ] `iteos-therapeutics` / `exothera` / `iba` / `precirix` — injoignables
@@ -130,7 +136,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 28/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 29/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
 `iteos-therapeutics`.
