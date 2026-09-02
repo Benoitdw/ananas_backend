@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (14)
+## Fait (17)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -24,6 +24,9 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `alexion-pharma-belgium` | Workday groupe AstraZeneca | `alexion.py` | 1 |
 | `roche-diagnostics` | Phenom People (`location_tokens`) | `roche.py` | 1 |
 | `msd-belgium` | Phenom People (`location_tokens`) | `msd.py` | 4 |
+| `catalent` | Phenom People (`location_tokens`) | `catalent.py` | 0 (aucun site belge) |
+| `boehringer-ingelheim` | SuccessFactors (vignettes) | `boehringer.py` + `successfactors.py` | 2 |
+| `terumo-europe` | SuccessFactors (tableau) | `terumo.py` + `successfactors.py` | 14 |
 
 ## Bases d'ATS reutilisables
 
@@ -34,6 +37,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `radancy.py::RadancyScraper` | Radancy, liste **SSR** (JSON-LD) | `base_url`, `search_path`, `countries` |
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
+| `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
 
 ## A faire — priorise par volume / facilite
 
@@ -45,25 +49,24 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
       faut la bonne `LocationFacet` : `Location=Belgium` seul ne filtre rien.
       Site de Lessines (production) → volume attendu. `RadancyScraper` ne
       couvre aujourd'hui que la liste SSR (Sanofi), pas cet AJAX.
-- [ ] **`catalent`** — Workday (tenant `catalent.wd5`, site `External` → 422 en
-      l'etat, chercher le bon `site`). Verifier volume BE avant de poser.
+- [x] ~~**`catalent`**~~ — Phenom People (`careers.catalent.com`, `us/en`).
+      Aucun site belge : `qcountry=Belgium` = 0 poste. Scraper pose (comme BMS).
 - [ ] **`novo-nordisk`** — ATS propre (`www.novonordisk.com/careers`, DNS
       `career.novonordisk.com` inaccessible depuis le conteneur). À explorer :
       souvent une API JSON derriere.
-- [ ] **`boehringer-ingelheim`** — `jobs.boehringer-ingelheim.com` =
-      **SuccessFactors** (ni `phApp.ddo` ni JSON-LD en SSR). Nouvelle base à
-      écrire (`successfactors.py`) — reutilisable pour Terumo.
+- [x] ~~**`boehringer-ingelheim`**~~ — SuccessFactors (`successfactors.py`).
+- [x] ~~**`terumo-europe`**~~ — SuccessFactors, meme base.
 - [ ] **`biomerieux`** — `careers.biomerieux.com` renvoie 403 au bot (Akamai).
       Tester un autre User-Agent / l'API SmartRecruiters (`biomerieux`).
-- [ ] **`terumo-europe`** — HQ Leuven. `careers.terumo-europe.com` =
-      **SuccessFactors** (`/go/All-jobs_en/3867101/`). Voir base commune avec
-      Boehringer.
 - [ ] **`thermo-fisher-scientific-henogen`** — `jobs.thermofisher.com` (bloque
       le bot en HEAD). Site de Gosselies (ex-Henogen). ATS propre — à sonder.
-- [ ] **`sgs-lab-simon`** — groupe SGS, `www.sgs.com/en/careers` (Workday
-      `sgs` probable). Site de Bierges.
-- [ ] **`bausch-lomb-pharma`** — Workday `bauschhealth.wd5` (site `External` →
-      422, chercher le bon `site`).
+- [ ] **`sgs-lab-simon`** — groupe SGS. Workday `sgs.wd3` repond 401 (compte
+      systeme). `careers.sgs.com` inaccessible depuis le conteneur. À reprendre
+      hors conteneur. Site de Bierges.
+- [ ] **`bausch-lomb-pharma`** — SuccessFactors mais **ancien servlet**
+      (`career2.successfactors.eu/career?company=Bausch`, aussi
+      `careers.bauschlomb.com/search` qui renvoie 0). Pas le theme SSR gere par
+      `successfactors.py`. À reprendre.
 
 ### Biotechs moyennes — souvent SmartRecruiters / Greenhouse / Lever / Recruitee
 
