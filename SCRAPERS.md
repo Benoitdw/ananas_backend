@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (19)
+## Fait (22)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -29,6 +29,9 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `terumo-europe` | SuccessFactors (tableau) | `terumo.py` + `successfactors.py` | 14 |
 | `thermo-fisher-scientific-henogen` | Phenom People (`location_tokens` Gosselies/Seneffe) | `thermofisher.py` | 3 |
 | `nelson-labs-europe` | Workday groupe Sotera Health | `nelson_labs.py` | 1 |
+| `prothya-biosolutions` | Site propre WP (pages departement) | `prothya.py` | 15 |
+| `galactic` | TalentFinder (JSON-LD) | `galactic.py` | 1 |
+| `novadip-biosciences` | Site propre WP | `novadip.py` | 1 |
 
 ## Bases d'ATS reutilisables
 
@@ -70,25 +73,30 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
       `careers.bauschlomb.com/search` qui renvoie 0). Pas le theme SSR gere par
       `successfactors.py`. À reprendre.
 
-### Biotechs moyennes — souvent SmartRecruiters / Greenhouse / Lever / Recruitee
+### Biotechs moyennes
 
-- [ ] `iteos-therapeutics` — Gosselies. Careers sur site propre
-      (`iteostherapeutics.com/careers`) ; verifier s'il y a un ATS derriere
-      (Greenhouse fréquent pour les biotechs NASDAQ).
+Note : depuis le conteneur, plusieurs sites sont injoignables (DNS/pare-feu
+egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
+`exothera.bio`, `cellistic.com`, `iba-worldwide.com`, `precirix.com`,
+`careers.biomerieux.com` (403 Akamai). À reprendre hors conteneur.
+
+- [x] ~~`prothya-biosolutions`~~ — Bruxelles. Site propre WP
+      (`careers-be.prothya.com`), parcours des pages departement → 15 offres.
+- [x] ~~`galactic`~~ — Bruxelles. ATS TalentFinder, fiches en JSON-LD → 1 offre.
+- [x] ~~`novadip-biosciences`~~ — Mont-Saint-Guibert. Site propre WP → 1 offre.
+- [ ] `ncardia` — Gosselies. Site propre (`/careers/<slug>`). Au 2026-09-02 :
+      1 poste, a Leiden (NL) — 0 en Belgique. Scraper a poser avec filtre lieu.
 - [ ] `celyad-oncology` — 0 poste annoncé, candidature par email. Basse prio.
-- [ ] `univercells-technologies` / `exothera` / `quantoom-biosciences` —
-      galaxie Univercells (Nivelles/Gosselies). Souvent Teamtailor ou
-      SmartRecruiters — 1 base pourrait couvrir les 3.
-- [ ] `novadip-biosciences` — Mont-Saint-Guibert.
-- [ ] `cellistic` — Mont-Saint-Guibert (spin-off Ncardia).
-- [ ] `ncardia` — Gosselies.
-- [ ] `iba` — Louvain-la-Neuve. `iba-worldwide.com/careers` — SmartRecruiters ?
-- [ ] `precirix` — Bruxelles.
-- [ ] `icometrix` — Leuven. `icometrix.com/careers` — souvent Recruitee.
-- [ ] `kantify` — Bruxelles, petite équipe.
-- [ ] `prothya-biosolutions` — Bruxelles (ex-Sanquin). ATS propre probable.
-- [ ] `realco` — Louvain-la-Neuve.
-- [ ] `galactic` — Escanaffles/Bruxelles.
+- [ ] `realco` — Louvain-la-Neuve. Site propre. Au 2026-09-02 : 1 poste
+      (Allemagne, remote) — 0 local. Basse prio.
+- [ ] `kantify` — Bruxelles. Aucune offre listee (page "rejoignez-nous" sans
+      postes). Basse prio.
+- [ ] `qaelum` — Leuven. Liste rendue en JS + emails anti-spam. À sonder.
+- [ ] `icometrix` — Leuven. `icometrix.com/company/careers` (l'ancienne URL est
+      en 404). Souvent Recruitee.
+- [ ] `iteos-therapeutics` / `univercells-technologies` / `exothera` /
+      `quantoom-biosciences` / `cellistic` / `iba` / `precirix` — injoignables
+      depuis le conteneur (voir note ci-dessus).
 
 ### Petites structures — verifier qu'il y a une page carrieres exploitable
 
@@ -106,7 +114,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 19/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 22/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
 `iteos-therapeutics`.
