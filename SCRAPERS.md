@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (28)
+## Fait (29)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -38,6 +38,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `univercells-technologies` | Workday groupe Donaldson (`location_tokens` Nivelles) | `univercells.py` | 2 |
 | `sobi-swedish-orphan-biovitrum` | SmartRecruiters (API, filtre pays) | `sobi.py` + `smartrecruiters.py` | 0 (0 poste belge) |
 | `baxter` | Workday (`baxter.wd1`) | `baxter.py` | 0 (aucun poste belge publie) |
+| `qaelum` | Section carrieres Joomla (flux RSS) | `qaelum.py` | 1 |
 
 ## Bases d'ATS reutilisables
 
@@ -107,7 +108,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
       (Allemagne, remote) — 0 local. Basse prio.
 - [ ] `kantify` — Bruxelles. Aucune offre listee (page "rejoignez-nous" sans
       postes). Basse prio.
-- [ ] `qaelum` — Leuven. Liste rendue en JS + emails anti-spam. À sonder.
+- [x] ~~`qaelum`~~ — Leuven. Section carrieres Joomla avec flux RSS → 1 offre.
 - [ ] `icometrix` — Leuven. Site Wix, aucune page carrieres publique ;
       rachat par GE HealthCare annonce. Basse prio.
 - [ ] `astrivax` — Leuven. `astrivax.com/vacancies/` : aucune offre ouverte
@@ -136,7 +137,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 29/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 30/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
 `iteos-therapeutics`.
