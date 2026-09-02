@@ -25,6 +25,9 @@ class JobLine:
     title: str
     url: str
     location: str | None = None
+    # Score de correspondance 0-100, None si l'utilisateur n'a pas de profil
+    # ou si l'offre n'est pas encore caracterisee
+    score: int | None = None
 
 
 @dataclass

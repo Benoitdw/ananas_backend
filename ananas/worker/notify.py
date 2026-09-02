@@ -4,6 +4,11 @@ Regle produit: on ne notifie que les offres *nouvelles*, et seulement pour les
 entreprises que l'utilisateur a enregistrees. Rien de nouveau = aucun message
 (pas de "rien a signaler" quotidien).
 
+Quand l'utilisateur a renseigne un profil, les offres sont triees par score de
+correspondance et celles sous son seuil sont ecartees s'il l'a demande. Une
+offre encore non caracterisee n'est jamais ecartee: on prefere un message de
+trop a une offre manquee a cause d'une extraction en retard.
+
 L'idempotence repose sur ``sent_job_notifications``: la ligne n'est ecrite
 qu'apres un envoi reussi, et sa cle primaire (user_id, job_id) empeche
 structurellement le doublon. Relancer le worker dix fois dans la journee
@@ -22,10 +27,12 @@ from sqlalchemy.orm import Session
 from ananas.models import (
     Company,
     Job,
+    JobMatch,
     NotificationChannel,
     SavedCompany,
     SentJobNotification,
     User,
+    UserProfile,
 )
 from ananas.notifiers.base import Digest, JobLine, NotifierError
 from ananas.notifiers.registry import get_notifier, load_notifiers
@@ -95,7 +102,7 @@ def send_daily_digests(db: Session, since: datetime | None = None) -> NotifyRepo
             continue
 
         # Marquage apres succes uniquement.
-        for job, _company in jobs:
+        for job, _company, _score in jobs:
             db.add(SentJobNotification(user_id=user_id, job_id=job.id))
         db.commit()
 
@@ -108,34 +115,46 @@ def send_daily_digests(db: Session, since: datetime | None = None) -> NotifyRepo
 
 def pending_jobs(
     db: Session, user_id: int, since: datetime | None = None
-) -> list[tuple[Job, Company]]:
+) -> list[tuple[Job, Company, int | None]]:
     """Offres ouvertes, chez une entreprise enregistree par l'utilisateur,
-    jamais notifiees a cet utilisateur."""
+    jamais notifiees, triees par pertinence decroissante."""
     already_sent = select(SentJobNotification.job_id).where(
         SentJobNotification.user_id == user_id
     )
+    profile = db.get(UserProfile, user_id)
 
     stmt = (
-        select(Job, Company)
+        select(Job, Company, JobMatch.score)
         .join(Company, Company.id == Job.company_id)
         .join(
             SavedCompany,
             (SavedCompany.company_id == Company.id) & (SavedCompany.user_id == user_id),
         )
+        .outerjoin(JobMatch, (JobMatch.job_id == Job.id) & (JobMatch.user_id == user_id))
         .where(Job.closed_at.is_(None), Job.id.not_in(already_sent))
-        .order_by(Company.name, Job.first_seen_at.desc())
+        .order_by(JobMatch.score.desc().nullslast(), Company.name, Job.first_seen_at.desc())
     )
     if since is not None:
         stmt = stmt.where(Job.first_seen_at >= since)
 
-    return [(job, company) for job, company in db.execute(stmt)]
+    rows = [(job, company, score) for job, company, score in db.execute(stmt)]
+
+    if profile and profile.notify_only_relevant and profile.is_ready:
+        # `score is None` = offre pas encore caracterisee: on la garde plutot
+        # que de la perdre a cause d'une extraction en retard.
+        rows = [r for r in rows if r[2] is None or r[2] >= profile.match_threshold]
+
+    return rows
 
 
-def build_digest(jobs: list[tuple[Job, Company]]) -> Digest:
-    """Regroupe par entreprise. Le rendu concret appartient a chaque notifier."""
+def build_digest(jobs: list[tuple[Job, Company, int | None]]) -> Digest:
+    """Regroupe par entreprise, en conservant l'ordre de pertinence.
+
+    Le rendu concret appartient a chaque notifier.
+    """
     companies: dict[str, list[JobLine]] = {}
-    for job, company in jobs:
+    for job, company, score in jobs:
         companies.setdefault(company.name, []).append(
-            JobLine(title=job.title, url=job.url, location=job.location)
+            JobLine(title=job.title, url=job.url, location=job.location, score=score)
         )
     return Digest(companies=companies)

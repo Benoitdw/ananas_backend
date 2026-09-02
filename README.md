@@ -118,6 +118,48 @@ Si la cle ne peut pas egaler le slug, renseigne `companies.scraper_key` a la mai
 `ananas/scrapers/qbd_group.py` est un exemple complet et commente, qui factorise
 la logique par ATS (`TeamtailorScraper`) plutot que par entreprise.
 
+## Correspondance offre / profil
+
+Deux etapes deliberement separees, dans `ananas/ai/` :
+
+1. **Extraction** (`extraction.py`) — la seule qui appelle un modele. Une offre
+   est structuree **une fois pour tous les utilisateurs** (`job_features`) ; un
+   profil l'est a chaque enregistrement du CV (`user_profiles`). Les deux
+   produisent le *meme vocabulaire* : memes echelles de seniorite, memes listes
+   de competences en minuscules.
+2. **Comparaison** (`matching.py`) — **aucun appel au modele**. Du Python
+   deterministe qui pondere competences, famille de metier, seniorite, secteur,
+   langues, lieu et teletravail, et retourne un score 0-100 avec ses raisons.
+
+Ce decoupage n'est pas une economie de moyens :
+
+- **cout** — comparer par LLM couterait N_utilisateurs x N_offres appels, a
+  refaire des qu'un profil change. Ici c'est gratuit, donc toutes les paires
+  sont materialisees dans `job_matches` et « les offres pertinentes de cette
+  entreprise » devient un `WHERE score >= seuil` ;
+- **explicabilite** — l'interface affiche *pourquoi* une offre matche ;
+- **stabilite** — deux executions donnent le meme score ;
+- **portabilite** — passer a un modele local ne touche que `ananas/ai/`.
+
+### Changer de fournisseur
+
+`ananas/ai/base.py` ne demande qu'une capacite : `complete_json(system, prompt,
+schema)`. Ajouter un modele local = une sous-classe de `BaseLLM` decoree
+`@register` dans `ananas/ai/`, puis `AI_PROVIDER=<cle>` dans le `.env`. Le
+scoring, les modeles de donnees, le worker et l'interface ne bougent pas.
+
+### Declencheurs de recalcul
+
+- une offre gagne des caracteristiques -> scoree pour tous les profils prets ;
+- un profil est (re)extrait -> toutes les offres sont rescorees pour lui.
+
+Le worker extrait les caracteristiques manquantes juste apres le scrape, avant
+la notification : sinon le tri par pertinence n'aurait rien a trier.
+
+```bash
+python -m ananas.worker.main --extract-only
+```
+
 ## Liaison Telegram
 
 `ananas/telegram_link.py`. Le token du bot est un secret serveur partage par

@@ -66,7 +66,12 @@ class TelegramNotifier(BaseNotifier):
             lines.append(f"<b>{html.escape(company)}</b>")
             for job in jobs:
                 title = html.escape(job.title)
-                suffix = f" — <i>{html.escape(job.location)}</i>" if job.location else ""
+                bits = []
+                if job.score is not None:
+                    bits.append(f"{_badge(job.score)} {job.score}%")
+                if job.location:
+                    bits.append(f"<i>{html.escape(job.location)}</i>")
+                suffix = f" — {' · '.join(bits)}" if bits else ""
                 lines.append(f'  • <a href="{html.escape(job.url, quote=True)}">{title}</a>{suffix}')
             lines.append("")
 
@@ -159,6 +164,15 @@ def get_updates(offset: int | None = None, limit: int = 100) -> list[dict]:
     if offset is not None:
         params["offset"] = offset
     return _api("getUpdates", **params) or []
+
+
+def _badge(score: int) -> str:
+    """Un reperage visuel du score, lisible d'un coup d'oeil dans la notif."""
+    if score >= 75:
+        return "🟢"
+    if score >= 55:
+        return "🟡"
+    return "⚪"
 
 
 def _describe(response: requests.Response) -> str:

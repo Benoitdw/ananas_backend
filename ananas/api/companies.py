@@ -16,7 +16,16 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ananas.db import get_db
-from ananas.models import SOURCE_USER, Company, Job, SavedCompany, User
+from ananas.models import (
+    SOURCE_USER,
+    Company,
+    Job,
+    JobFeatures,
+    JobMatch,
+    SavedCompany,
+    User,
+    UserProfile,
+)
 from ananas.schemas import (
     CompanyDetail,
     CompanyFacets,
@@ -244,15 +253,33 @@ def _domain(url: str) -> str:
 
 
 def _detail(db: Session, company: Company, user: User | None) -> CompanyDetail:
-    jobs = db.scalars(
-        select(Job)
+    """Les offres portent leur score quand l'utilisateur a un profil: c'est ce
+    qui permet de n'afficher que les offres pertinentes d'une entreprise."""
+    stmt = (
+        select(Job, JobMatch, JobFeatures)
+        .outerjoin(
+            JobMatch,
+            (JobMatch.job_id == Job.id) & (JobMatch.user_id == (user.id if user else 0)),
+        )
+        .outerjoin(JobFeatures, JobFeatures.job_id == Job.id)
         .where(Job.company_id == company.id, Job.closed_at.is_(None))
-        .order_by(Job.first_seen_at.desc())
+        .order_by(JobMatch.score.desc().nullslast(), Job.first_seen_at.desc())
     )
+
+    jobs: list[JobOut] = []
+    for job, match, features in db.execute(stmt):
+        out = JobOut.model_validate(job)
+        out.match_score = match.score if match else None
+        out.match_reasons = (match.reasons if match else []) or []
+        out.summary = features.summary if features else None
+        jobs.append(out)
+
     detail = CompanyDetail.model_validate(company)
     detail.is_saved = company.id in _saved_ids(db, user)
-    detail.jobs = [JobOut.model_validate(j) for j in jobs]
+    detail.jobs = jobs
     detail.submitted_by_email = company.submitted_by.email if company.submitted_by else None
+    profile = db.get(UserProfile, user.id) if user else None
+    detail.match_threshold = profile.match_threshold if profile else None
     return detail
 
 

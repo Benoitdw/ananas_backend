@@ -70,7 +70,12 @@ class JobPosting:
     title: str
     url: str
     location: str | None = None
+    # Texte de l'annonce. C'est la matiere premiere de l'extraction de
+    # caracteristiques: un scraper qui ne le remplit pas prive le matching de
+    # presque toute son information.
     description: str | None = None
+    # Service / equipe, quand le site l'expose de facon structuree
+    department: str | None = None
     posted_at: date | None = None
     # Identifiant fourni par le site lui-meme, s'il en expose un (ref, id API).
     # A privilegier: il survit a un changement d'URL ou de libelle.

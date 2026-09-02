@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     # --- notifications
     telegram_bot_token: str = ""
 
+    # --- modele de langage
+    # Sert uniquement a structurer du texte libre (offres, CV). La comparaison
+    # profil/offre est du Python deterministe: changer de fournisseur, y compris
+    # pour un modele local, ne touche que ananas/ai/.
+    ai_provider: str = "gemini"
+    ai_model: str = "gemini-3.7-flash"
+    ai_timeout: int = 60
+    gemini_api_key: str = ""
+    # En dessous de ce score (0-100) une offre n'est pas jugee pertinente
+    match_threshold_default: int = 55
+
     # --- worker
     scrape_cron_hour: int = 6
     scrape_cron_minute: int = 0

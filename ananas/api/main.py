@@ -14,8 +14,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ananas.api import auth, channels, companies, jobs, saved
+from ananas.api import auth, channels, companies, jobs, profile, saved
 from ananas.config import settings
+from ananas.ai.registry import load_providers
 from ananas.notifiers.registry import load_notifiers
 from ananas.scrapers.registry import load_scrapers
 
@@ -27,6 +28,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # transports sont disponibles et quelles entreprises ont un scraper.
     load_scrapers()
     load_notifiers()
+    load_providers()
     yield
 
 
@@ -50,6 +52,7 @@ app.include_router(companies.router)
 app.include_router(saved.router)
 app.include_router(jobs.router)
 app.include_router(channels.router)
+app.include_router(profile.router)
 
 
 @app.get("/api/health", tags=["meta"])

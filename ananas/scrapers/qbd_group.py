@@ -24,6 +24,7 @@ from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from ananas.scrapers.base import BaseScraper, JobPosting
+from ananas.scrapers.http import html_to_text
 from ananas.scrapers.registry import register
 
 # Namespace des extensions Teamtailor dans le flux RSS
@@ -60,7 +61,9 @@ class TeamtailorScraper(BaseScraper):
             title=(item.findtext("title") or "").strip(),
             url=(item.findtext("link") or "").strip(),
             location=self._location(item),
-            description=self._department(item),
+            # Le flux porte l'annonce complete en HTML echappe (~5 kio).
+            description=html_to_text(item.findtext("description") or ""),
+            department=self._department(item),
             posted_at=self._published(item),
             # Le guid Teamtailor est un UUID stable: il survit a un changement
             # de titre ou de slug d'URL, contrairement au fingerprint calcule.

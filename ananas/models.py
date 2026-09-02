@@ -15,6 +15,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    JSON,
     Date,
     DateTime,
     Float,
@@ -210,6 +211,7 @@ class Job(Base):
     url: Mapped[str] = mapped_column(String(1000))
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    department: Mapped[str | None] = mapped_column(String(160), nullable=True)
     posted_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     first_seen_at: Mapped[datetime] = mapped_column(
@@ -222,10 +224,129 @@ class Job(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     company: Mapped[Company] = relationship(back_populates="jobs")
+    features: Mapped[JobFeatures | None] = relationship(
+        back_populates="job", cascade="all, delete-orphan", uselist=False
+    )
 
     @property
     def is_open(self) -> bool:
         return self.closed_at is None
+
+
+class JobFeatures(Base):
+    """Caracteristiques structurees d'une offre, extraites une seule fois.
+
+    Une offre ne change pas d'un utilisateur a l'autre: la structurer par
+    utilisateur serait N-1 appels de modele gaspilles. Ces caracteristiques
+    sont donc communes, et la comparaison au profil se fait ensuite en Python
+    (``ananas.ai.matching``).
+    """
+
+    __tablename__ = "job_features"
+
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_family: Mapped[str] = mapped_column(String(120), default="")
+    seniority: Mapped[str] = mapped_column(String(16), default="inconnu")
+    years_experience_min: Mapped[int] = mapped_column(Integer, default=0)
+    contract: Mapped[str] = mapped_column(String(16), default="inconnu")
+    remote: Mapped[str] = mapped_column(String(16), default="inconnu")
+    # Listes de termes normalises, dans le meme vocabulaire que le profil
+    skills: Mapped[list] = mapped_column(JSON, default=list)
+    nice_to_have: Mapped[list] = mapped_column(JSON, default=list)
+    domains: Mapped[list] = mapped_column(JSON, default=list)
+    languages: Mapped[list] = mapped_column(JSON, default=list)
+    locations: Mapped[list] = mapped_column(JSON, default=list)
+    summary: Mapped[str] = mapped_column(Text, default="")
+
+    model: Mapped[str] = mapped_column(String(80), default="")
+    extracted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    job: Mapped[Job] = relationship(back_populates="features")
+
+    def as_dict(self) -> dict:
+        """Forme attendue par ``ananas.ai.matching.score_job``."""
+        return {
+            "role_family": self.role_family,
+            "seniority": self.seniority,
+            "years_experience_min": self.years_experience_min,
+            "contract": self.contract,
+            "remote": self.remote,
+            "skills": self.skills or [],
+            "nice_to_have": self.nice_to_have or [],
+            "domains": self.domains or [],
+            "languages": self.languages or [],
+            "locations": self.locations or [],
+            "summary": self.summary,
+        }
+
+
+class UserProfile(Base):
+    """CV et aspirations d'un utilisateur, plus leur forme structuree.
+
+    ``version`` s'incremente a chaque nouvelle extraction: c'est ce qui permet
+    de savoir quels scores sont perimes sans tout recalculer aveuglement.
+    """
+
+    __tablename__ = "user_profiles"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    cv_text: Mapped[str] = mapped_column(Text, default="")
+    aspirations: Mapped[str] = mapped_column(Text, default="")
+
+    # Resultat de l'extraction, meme vocabulaire que JobFeatures
+    data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=0)
+    model: Mapped[str] = mapped_column(String(80), default="")
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 'ok' | 'error' | None tant qu'aucune extraction n'a eu lieu
+    status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Seuil au-dela duquel une offre est jugee pertinente pour cette personne
+    match_threshold: Mapped[int] = mapped_column(Integer, default=55, server_default="55")
+    # Ne notifier que les offres au-dessus du seuil
+    notify_only_relevant: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true"
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship()
+
+    @property
+    def is_ready(self) -> bool:
+        return bool(self.data) and self.status == "ok"
+
+
+class JobMatch(Base):
+    """Score d'une offre pour un utilisateur.
+
+    Materialise parce que le calcul est gratuit mais pas instantane a l'echelle
+    de toutes les paires, et surtout pour pouvoir trier et filtrer en SQL —
+    c'est ce qui permet "les offres pertinentes de cette entreprise".
+    """
+
+    __tablename__ = "job_matches"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    score: Mapped[int] = mapped_column(Integer, index=True)
+    reasons: Mapped[list] = mapped_column(JSON, default=list)
+    # Version du profil ayant servi au calcul: un score plus ancien est perime
+    profile_version: Mapped[int] = mapped_column(Integer, default=0)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class SentJobNotification(Base):

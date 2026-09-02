@@ -20,8 +20,10 @@ from apscheduler.triggers.cron import CronTrigger
 from ananas.config import settings
 from ananas.db import session_scope
 from ananas.models import ScrapeRun
+from ananas.ai.registry import load_providers
 from ananas.notifiers.registry import load_notifiers
 from ananas.scrapers.registry import load_scrapers
+from ananas.ai.service import extract_missing_features
 from ananas.worker.notify import send_daily_digests
 from ananas.worker.scrape import run_scrapes
 
@@ -40,6 +42,9 @@ def daily_job(company: str | None = None, scrape: bool = True, notify: bool = Tr
     with session_scope() as db:
         if scrape:
             run_scrapes(db, only=company)
+            # Les caracteristiques doivent exister avant la notification, sinon
+            # le tri par pertinence n'a rien a trier.
+            extract_missing_features(db)
 
         if notify:
             # On borne aux offres apparues pendant ce run pour ne pas deverser
@@ -68,6 +73,7 @@ def _has_previous_run(db, before: datetime) -> bool:
 def start_scheduler() -> None:
     load_scrapers()
     load_notifiers()
+    load_providers()
 
     scheduler = BlockingScheduler(timezone=settings.timezone)
     trigger = CronTrigger(
@@ -103,6 +109,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--now", action="store_true", help="execute une passe immediatement")
     parser.add_argument("--scrape-only", action="store_true", help="scrape sans notifier")
     parser.add_argument("--notify-only", action="store_true", help="notifie sans scraper")
+    parser.add_argument(
+        "--extract-only", action="store_true", help="caracterise les offres en attente"
+    )
     parser.add_argument("--company", help="limite a une entreprise (slug ou scraper_key)")
     parser.add_argument(
         "--list-scrapers", action="store_true", help="affiche les scrapers enregistres"
@@ -115,6 +124,11 @@ def main(argv: list[str] | None = None) -> int:
             print("Aucun scraper enregistre.")
         for key, cls in sorted(scrapers.items()):
             print(f"  {key:24} {cls.label or cls.__name__:24} {cls.careers_url}")
+        return 0
+
+    if args.extract_only:
+        with session_scope() as db:
+            print(f"{extract_missing_features(db)} offres caracterisees")
         return 0
 
     one_shot = args.now or args.scrape_only or args.notify_only or args.company

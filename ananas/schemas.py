@@ -39,9 +39,14 @@ class JobOut(ORM):
     title: str
     url: str
     location: str | None
+    department: str | None = None
     posted_at: date | None
     first_seen_at: datetime
     closed_at: datetime | None
+    # Renseignes quand l'utilisateur a un profil et que l'offre est caracterisee
+    match_score: int | None = None
+    match_reasons: list[str] = []
+    summary: str | None = None
 
 
 class JobWithCompany(JobOut):
@@ -103,6 +108,9 @@ class CompanyDetail(ORM):
     last_scraped_at: datetime | None
     is_saved: bool = False
     jobs: list[JobOut] = []
+    # Seuil de l'utilisateur, pour que le front puisse proposer
+    # "offres pertinentes uniquement" sans second appel
+    match_threshold: int | None = None
 
 
 class CompanyFacets(BaseModel):
@@ -237,6 +245,34 @@ class TelegramLinkOut(BaseModel):
 class TelegramLinkStatus(BaseModel):
     status: str  # 'pending' | 'linked'
     channel: ChannelOut | None = None
+
+
+# ---------------------------------------------- profil et correspondance
+
+
+class ProfileIn(BaseModel):
+    cv_text: str = Field(default="", max_length=40000)
+    aspirations: str = Field(default="", max_length=4000)
+
+
+class ProfilePreferencesIn(BaseModel):
+    match_threshold: int | None = Field(default=None, ge=0, le=100)
+    notify_only_relevant: bool | None = None
+
+
+class ProfileOut(ORM):
+    cv_text: str
+    aspirations: str
+    match_threshold: int
+    notify_only_relevant: bool
+    status: str | None
+    error: str | None
+    extracted_at: datetime | None
+    version: int
+    # Forme structuree, affichee pour que l'utilisateur voie ce qui a ete
+    # compris de son CV — et puisse le corriger si c'est faux.
+    data: dict | None = None
+    ai_available: bool = True
 
 
 class MessageOut(BaseModel):

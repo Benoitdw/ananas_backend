@@ -6,6 +6,7 @@ User-Agent explicite, et de quoi normaliser le texte extrait du HTML.
 
 from __future__ import annotations
 
+import html
 import re
 
 import requests
@@ -43,6 +44,19 @@ def decode_cfemail(hex_str: str) -> str:
         return "".join(chr(b ^ data[0]) for b in data[1:])
     except ValueError:
         return ""
+
+
+def html_to_text(raw: str, limit: int = 8000) -> str:
+    """Texte lisible a partir d'un fragment HTML.
+
+    Les descriptions d'offres arrivent souvent en HTML echappe dans un flux
+    (RSS, JSON d'ATS). On garde le texte: c'est ce que lit l'extraction de
+    caracteristiques, la mise en forme ne l'interesse pas.
+    """
+    if not raw:
+        return ""
+    soup = BeautifulSoup(html.unescape(raw), "html.parser")
+    return re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).strip()[:limit]
 
 
 def absolutize(base: str, href: str) -> str:

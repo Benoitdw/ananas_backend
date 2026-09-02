@@ -177,6 +177,7 @@ def _sync_jobs(
                     url=posting.url[:1000],
                     location=posting.location,
                     description=posting.description,
+                    department=posting.department,
                     posted_at=posting.posted_at,
                     first_seen_at=now,
                     last_seen_at=now,
@@ -193,6 +194,8 @@ def _sync_jobs(
         job.location = posting.location
         if posting.description:
             job.description = posting.description
+        if posting.department:
+            job.department = posting.department
         if posting.posted_at:
             job.posted_at = posting.posted_at
         # Une offre republiee apres avoir disparu: on la rouvre sans la
