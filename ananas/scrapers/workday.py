@@ -60,6 +60,11 @@ class WorkdayScraper(BaseScraper):
     search_text: ClassVar[str] = ""
     # Pays acceptes apres coup (re-filtrage sur le JSON de detail)
     countries: ClassVar[frozenset[str]] = BELGIUM
+    # Jetons de lieu retenus apres coup, en plus du pays. Utile quand le tenant
+    # regroupe plusieurs marques/sites d'un meme groupe et qu'on ne veut que
+    # l'un d'eux (Nelson Labs = site de Leuven du groupe Sotera Health). Vide =
+    # on s'en tient au filtre pays.
+    location_tokens: ClassVar[frozenset[str]] = frozenset()
     # Pagination imposee par Workday
     page_size: ClassVar[int] = 20
     max_pages: ClassVar[int] = 25
@@ -74,6 +79,14 @@ class WorkdayScraper(BaseScraper):
     def fetch(self) -> list[JobPosting]:
         stubs = self._list()
         postings = [p for stub in stubs if (p := self._detail(stub))]
+
+        if self.location_tokens:
+            toks = {t.casefold() for t in self.location_tokens}
+            postings = [
+                p
+                for p in postings
+                if any(t in (p.location or "").casefold() for t in toks)
+            ]
 
         if not self.countries:
             log.info("%s: %d offres", self.key, len(postings))

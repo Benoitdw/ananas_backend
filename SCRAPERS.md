@@ -6,7 +6,7 @@ belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 
-## Fait (17)
+## Fait (19)
 
 | slug | ATS | module | offres au 2026-09-02 |
 |---|---|---|---|
@@ -27,6 +27,8 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `catalent` | Phenom People (`location_tokens`) | `catalent.py` | 0 (aucun site belge) |
 | `boehringer-ingelheim` | SuccessFactors (vignettes) | `boehringer.py` + `successfactors.py` | 2 |
 | `terumo-europe` | SuccessFactors (tableau) | `terumo.py` + `successfactors.py` | 14 |
+| `thermo-fisher-scientific-henogen` | Phenom People (`location_tokens` Gosselies/Seneffe) | `thermofisher.py` | 3 |
+| `nelson-labs-europe` | Workday groupe Sotera Health | `nelson_labs.py` | 1 |
 
 ## Bases d'ATS reutilisables
 
@@ -58,8 +60,8 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 - [x] ~~**`terumo-europe`**~~ — SuccessFactors, meme base.
 - [ ] **`biomerieux`** — `careers.biomerieux.com` renvoie 403 au bot (Akamai).
       Tester un autre User-Agent / l'API SmartRecruiters (`biomerieux`).
-- [ ] **`thermo-fisher-scientific-henogen`** — `jobs.thermofisher.com` (bloque
-      le bot en HEAD). Site de Gosselies (ex-Henogen). ATS propre — à sonder.
+- [x] ~~**`thermo-fisher-scientific-henogen`**~~ — Phenom (`jobs.thermofisher.com`),
+      filtre `location_tokens` Gosselies/Seneffe (43 postes BE groupe → 3 locaux).
 - [ ] **`sgs-lab-simon`** — groupe SGS. Workday `sgs.wd3` repond 401 (compte
       systeme). `careers.sgs.com` inaccessible depuis le conteneur. À reprendre
       hors conteneur. Site de Bierges.
@@ -93,7 +95,8 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 - [ ] `diasource-immunoassays`, `onelife` (Louvain-la-Neuve)
 - [ ] `inhatarget-therapeutics`, `biosenic` (Gosselies)
 - [ ] `astrivax`, `montis-biosciences`, `midiagnostics`, `replasia`,
-      `azalea-vision`, `qaelum`, `nelson-labs-europe` (Leuven)
+      `azalea-vision`, `qaelum` (Leuven)
+- [x] ~~`nelson-labs-europe`~~ (Leuven) — Workday groupe Sotera Health.
 - [ ] `sgs-lab-simon` (Bierges) — SGS groupe, ATS Workday possible
 - [ ] `bausch-lomb-pharma` (Bruxelles) — Workday `bauschhealth`
 - [ ] `bristol-myers-squibb` déjà listé plus haut
@@ -103,7 +106,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.enrich` pose `website` / `careers_url` depuis ce CSV
 (remplit les blancs ; `--force` pour ecraser).
 
-Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 14/49 ont un
+Au 2026-09-02 : **49/49** fiches `curated` ont un `website` ; 19/49 ont un
 `careers_url` (celles qui ont un scraper, renseigne automatiquement au liage).
 Quelques URL non verifiees a la main (bot bloque) : `onelife`, `azalea-vision`,
-`nelson-labs-europe`, `iteos-therapeutics`, `thermo-fisher-scientific-henogen`.
+`iteos-therapeutics`.
