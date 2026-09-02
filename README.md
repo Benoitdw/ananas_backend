@@ -118,6 +118,28 @@ Si la cle ne peut pas egaler le slug, renseigne `companies.scraper_key` a la mai
 `ananas/scrapers/qbd_group.py` est un exemple complet et commente, qui factorise
 la logique par ATS (`TeamtailorScraper`) plutot que par entreprise.
 
+## Liaison Telegram
+
+`ananas/telegram_link.py`. Le token du bot est un secret serveur partage par
+tous les comptes : il ne doit jamais etre communique a un utilisateur, ce qui
+exclut de lui faire ouvrir `getUpdates` lui-meme. Et un bot Telegram ne peut
+pas ecrire a quelqu'un qui ne lui a jamais parle : l'initiative doit venir de
+l'utilisateur.
+
+D'ou le protocole : le serveur tire un code a usage unique et construit
+`https://t.me/<bot>?start=<code>` ; l'utilisateur appuie sur « Demarrer » ;
+le serveur retrouve le code dans `getUpdates` et enregistre le `chat.id`.
+
+Deux pieges, tous deux couverts par `tests/test_telegram_link.py` :
+
+- **`getUpdates` est exclusif et destructif.** Chaque appel avec un `offset`
+  confirme definitivement le lot precedent, que Telegram ne rejouera plus. Deux
+  requetes concurrentes se voleraient leurs messages : d'ou le verrou, et le
+  fait que chaque vidange confronte les mises a jour a *tous* les codes en
+  attente, pas seulement a celui de l'appelant.
+- **L'offset doit survivre a un redemarrage**, sinon on retraite ou on perd des
+  liaisons. Il est persiste dans la table `app_state`.
+
 ## Ajouter un canal de notification
 
 Meme principe dans `ananas/notifiers/` : sous-classe `BaseNotifier`, decore avec

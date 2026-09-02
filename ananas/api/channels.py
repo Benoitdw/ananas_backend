@@ -1,8 +1,12 @@
-"""Canaux de notification: le chat_id du bot Telegram se regle ici.
+"""Canaux de notification.
 
-Le bouton "Envoyer un test" est ce qui rend la configuration verifiable: sans
-lui, un chat_id errone ne se manifeste que par l'absence silencieuse de
-notification le lendemain.
+La liaison Telegram passe par un lien profond a usage unique: l'utilisateur
+appuie sur "Demarrer" dans le bot, et le serveur retrouve son ``chat.id``. Le
+token du bot ne quitte jamais le serveur — voir ``ananas/telegram_link.py``.
+
+Le bouton "Envoyer un test" reste ce qui rend la configuration verifiable:
+sans lui, une conversation mal liee ne se manifeste que par l'absence
+silencieuse de notification le lendemain.
 """
 
 from __future__ import annotations
@@ -15,8 +19,17 @@ from ananas.db import get_db
 from ananas.models import NotificationChannel, User
 from ananas.notifiers.base import NotifierError
 from ananas.notifiers.registry import available_types, get_notifier
-from ananas.schemas import ChannelIn, ChannelOut, ChannelUpdate, MessageOut
+from ananas.notifiers.telegram import TelegramApiError, bot_username
+from ananas.schemas import (
+    ChannelIn,
+    ChannelOut,
+    ChannelUpdate,
+    MessageOut,
+    TelegramLinkOut,
+    TelegramLinkStatus,
+)
 from ananas.security import get_current_user
+from ananas.telegram_link import deep_link, new_code, purge_expired, resolve
 
 router = APIRouter(prefix="/api/me/channels", tags=["notifications"])
 
@@ -49,6 +62,48 @@ def list_types() -> list[dict]:
         }
         for t in available_types()
     ]
+
+
+# ------------------------------------------------------- liaison Telegram
+
+
+@router.post("/telegram/link", response_model=TelegramLinkOut)
+def start_telegram_link(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> TelegramLinkOut:
+    """Ouvre une liaison: renvoie un code a usage unique et son lien profond.
+
+    Le code est valable 15 minutes et remplace tout code precedent du compte.
+    """
+    try:
+        username = bot_username()
+    except TelegramApiError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    purge_expired(db)
+    code = new_code(db, user)
+    return TelegramLinkOut(
+        code=code.code,
+        url=deep_link(code.code),
+        bot_username=username,
+        expires_at=code.expires_at,
+    )
+
+
+@router.get("/telegram/link", response_model=TelegramLinkStatus)
+def poll_telegram_link(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> TelegramLinkStatus:
+    """Interroge l'avancement. Appelee en boucle par la page Parametres.
+
+    C'est cet appel qui consomme les mises a jour Telegram: il resout aussi
+    les codes des autres utilisateurs en attente, faute de quoi une requete
+    concurrente ferait disparaitre leur message.
+    """
+    channel = resolve(db, user)
+    if channel is None:
+        return TelegramLinkStatus(status="pending")
+    return TelegramLinkStatus(status="linked", channel=ChannelOut.model_validate(channel))
 
 
 @router.get("", response_model=list[ChannelOut])

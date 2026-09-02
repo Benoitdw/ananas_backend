@@ -1,12 +1,14 @@
 """Notification par bot Telegram.
 
 Un seul bot cote serveur (``TELEGRAM_BOT_TOKEN``), partage par tous les
-utilisateurs. Chaque utilisateur ne fournit que son ``chat_id``, saisi dans la
-page Parametres — c'est le "id conversation bot" a changer.
+utilisateurs. Chaque utilisateur n'est identifie que par son ``chat_id``.
 
-Pour obtenir son chat_id: parler une fois au bot, puis appeler
-``https://api.telegram.org/bot<TOKEN>/getUpdates``. Le helper
-``resolve_chat_ids()`` en bas de fichier fait exactement ca.
+**Le token ne sort jamais du serveur.** C'est un secret partage: qui le
+detient peut piloter le bot et ecrire a tous les autres comptes. La liaison
+d'un compte passe donc par un lien profond a usage unique (voir
+``ananas/api/channels.py``): un bot Telegram ne pouvant pas ecrire le premier,
+c'est l'utilisateur qui envoie ``/start <code>``, et le serveur — seul
+detenteur du token — lit le ``chat.id`` dans ``getUpdates``.
 """
 
 from __future__ import annotations
@@ -105,6 +107,60 @@ class TelegramNotifier(BaseNotifier):
             raise NotifierError(f"Telegram a refuse l'envoi ({response.status_code}): {detail}")
 
 
+# ------------------------------------------------------- API cote serveur
+# Ces fonctions manipulent le token: elles ne doivent jamais etre exposees
+# telles quelles a un client.
+
+
+class TelegramApiError(RuntimeError):
+    pass
+
+
+def _api(method: str, **params):
+    """Appel brut a l'API Telegram. Leve TelegramApiError en cas d'echec."""
+    if not settings.telegram_bot_token:
+        raise TelegramApiError("TELEGRAM_BOT_TOKEN n'est pas configure cote serveur")
+    try:
+        response = requests.get(
+            f"{API_ROOT}/bot{settings.telegram_bot_token}/{method}", params=params, timeout=20
+        )
+    except requests.RequestException as exc:
+        raise TelegramApiError(f"Telegram injoignable: {exc}") from exc
+
+    if response.status_code != 200:
+        raise TelegramApiError(f"Telegram a repondu {response.status_code}: {_describe(response)}")
+    return response.json().get("result")
+
+
+_bot_username: str | None = None
+
+
+def bot_username() -> str:
+    """Nom du bot, pour construire le lien profond. Mis en cache.
+
+    Interroge ``getMe`` plutot que de dependre d'une variable d'environnement
+    supplementaire: le token suffit a determiner de quel bot il s'agit.
+    """
+    global _bot_username
+    if _bot_username is None:
+        _bot_username = (_api("getMe") or {}).get("username", "")
+    return _bot_username
+
+
+def get_updates(offset: int | None = None, limit: int = 100) -> list[dict]:
+    """Mises a jour en attente.
+
+    ``offset`` confirme definitivement les mises a jour precedentes cote
+    Telegram: il doit donc etre persiste, sinon on retraite ou on perd des
+    messages. Timeout 0 (pas de long polling): l'appel est declenche par le
+    navigateur qui interroge la page Parametres.
+    """
+    params = {"limit": limit, "timeout": 0}
+    if offset is not None:
+        params["offset"] = offset
+    return _api("getUpdates", **params) or []
+
+
 def _describe(response: requests.Response) -> str:
     try:
         return response.json().get("description", response.text[:200])
@@ -112,26 +168,3 @@ def _describe(response: requests.Response) -> str:
         return response.text[:200]
 
 
-def resolve_chat_ids(token: str | None = None) -> list[dict]:
-    """Liste les conversations recentes du bot, pour retrouver un chat_id.
-
-    Utilitaire de mise au point:
-        python -c "from ananas.notifiers.telegram import resolve_chat_ids as r; print(r())"
-    """
-    token = token or settings.telegram_bot_token
-    if not token:
-        raise NotifierError("TELEGRAM_BOT_TOKEN absent")
-
-    response = requests.get(f"{API_ROOT}/bot{token}/getUpdates", timeout=20)
-    response.raise_for_status()
-
-    chats = {}
-    for update in response.json().get("result", []):
-        chat = (update.get("message") or update.get("channel_post") or {}).get("chat")
-        if chat:
-            chats[chat["id"]] = {
-                "chat_id": str(chat["id"]),
-                "type": chat.get("type"),
-                "name": chat.get("title") or chat.get("username") or chat.get("first_name", ""),
-            }
-    return list(chats.values())

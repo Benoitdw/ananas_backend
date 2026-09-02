@@ -225,5 +225,19 @@ class ChannelOut(ORM):
     last_sent_at: datetime | None
 
 
+class TelegramLinkOut(BaseModel):
+    """Liaison ouverte: de quoi afficher le bouton, le QR et le code de repli."""
+
+    code: str
+    url: str
+    bot_username: str
+    expires_at: datetime
+
+
+class TelegramLinkStatus(BaseModel):
+    status: str  # 'pending' | 'linked'
+    channel: ChannelOut | None = None
+
+
 class MessageOut(BaseModel):
     detail: str

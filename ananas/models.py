@@ -245,6 +245,48 @@ class SentJobNotification(Base):
     channel_type: Mapped[str] = mapped_column(String(32), default="telegram")
 
 
+class TelegramLinkCode(Base):
+    """Code a usage unique liant un compte Ananas a une conversation Telegram.
+
+    Un bot Telegram ne peut pas ecrire a quelqu'un qui ne lui a jamais parle:
+    c'est donc l'utilisateur qui doit initier. Le code voyage dans le lien
+    profond ``https://t.me/<bot>?start=<code>``, l'utilisateur appuie sur
+    "Demarrer", et le serveur retrouve le ``chat.id`` dans la mise a jour
+    correspondante.
+
+    Cela evite surtout d'avoir a communiquer le token du bot a l'utilisateur:
+    c'est un secret serveur partage par tous les comptes.
+    """
+
+    __tablename__ = "telegram_link_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Rempli quand la mise a jour Telegram correspondante a ete vue
+    chat_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    user: Mapped[User] = relationship()
+
+
+class AppState(Base):
+    """Petites valeurs de service qui doivent survivre a un redemarrage.
+
+    Sert au curseur ``telegram_update_offset``: l'API de Telegram ne rejoue une
+    mise a jour que tant qu'elle n'a pas ete confirmee par un offset superieur.
+    Perdre ce curseur ferait retraiter, ou pire manquer, des liaisons.
+    """
+
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+
+
 class ScrapeRun(Base):
     """Une execution du worker — de quoi savoir si le run de la nuit a marche."""
 
