@@ -82,18 +82,21 @@ class NotificationChannel(Base):
 
 
 # Provenance d'une entreprise. 'biowin' = importee du repertoire du POC,
+# 'curated' = ajoutee au repertoire Ananas par un CSV de data/,
 # 'from_user' = proposee par un utilisateur via le formulaire.
 SOURCE_BIOWIN = "biowin"
+SOURCE_CURATED = "curated"
 SOURCE_USER = "from_user"
 
 
 class Company(Base):
     """Une entreprise du repertoire, affichee sur la carte.
 
-    Deux provenances (colonne ``source``): les 81 partenaires importes du CSV
-    BioWin, et celles proposees par les utilisateurs. Le reste du modele est
-    identique — une entreprise proposee est une entreprise a part entiere,
-    visible et enregistrable par tous.
+    Trois provenances (colonne ``source``): les 81 partenaires importes du CSV
+    BioWin, les entreprises du repertoire Ananas (autres CSV de ``data/``), et
+    celles proposees par les utilisateurs. Le reste du modele est identique —
+    une entreprise proposee est une entreprise a part entiere, visible et
+    enregistrable par tous.
 
     Les colonnes ``careers_url`` / ``scraper_key`` branchent une entreprise sur
     un scraper concret.

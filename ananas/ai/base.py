@@ -41,5 +41,16 @@ class BaseLLM(ABC):
     def is_configured(self) -> bool:
         """False si la configuration serveur manque (cle absente)."""
 
+    def read_document(self, *, data: bytes, mime_type: str, instruction: str) -> str:
+        """Transcrit un document binaire (PDF scanne) en texte.
+
+        Capacite **optionnelle**: sert uniquement de repli quand un PDF n'a
+        aucune couche texte. Un fournisseur qui ne sait pas le faire laisse
+        cette implementation lever, et l'appelant demande alors a
+        l'utilisateur de coller son texte. Un modele local sans entree
+        documentaire reste donc parfaitement utilisable.
+        """
+        raise NotImplementedError(f"{self.describe()} ne sait pas lire un document")
+
     def describe(self) -> str:
         return self.label or self.key

@@ -8,13 +8,20 @@ pouvoir le corriger si c'est faux.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ananas.ai.service import ai_ready, extract_user_profile
+from ananas.cv_import import MAX_BYTES, CvImportError, read_cv
 from ananas.db import get_db
 from ananas.models import User, UserProfile
-from ananas.schemas import MessageOut, ProfileIn, ProfileOut, ProfilePreferencesIn
+from ananas.schemas import (
+    CvImportOut,
+    MessageOut,
+    ProfileIn,
+    ProfileOut,
+    ProfilePreferencesIn,
+)
 from ananas.security import get_current_user
 
 router = APIRouter(prefix="/api/me/profile", tags=["profil"])
@@ -62,6 +69,35 @@ def save_profile(
     extract_user_profile(db, profile)
     db.refresh(profile)
     return _out(profile)
+
+
+@router.post("/cv-file", response_model=CvImportOut)
+def import_cv(
+    file: UploadFile = File(...), user: User = Depends(get_current_user)
+) -> CvImportOut:
+    """Extrait le texte d'un CV en PDF. **N'enregistre rien.**
+
+    Le texte est renvoye au formulaire, qui le place dans le champ CV pour que
+    l'utilisateur le relise avant de lancer l'analyse: une extraction PDF
+    melange souvent les colonnes, et analyser directement un texte non relu
+    produirait un profil faux sans que personne s'en apercoive.
+    """
+    if file.content_type not in (None, "application/pdf", "application/octet-stream"):
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Seuls les fichiers PDF sont acceptes."
+        )
+
+    data = file.file.read(MAX_BYTES + 1)
+    try:
+        text, pages, method = read_cv(data)
+    except CvImportError as exc:
+        # 422: le fichier est arrive intact, c'est son contenu qui pose
+        # probleme. Le message est destine a l'utilisateur.
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+    return CvImportOut(
+        text=text, pages=pages, method=method, filename=file.filename or "cv.pdf"
+    )
 
 
 @router.patch("/preferences", response_model=ProfileOut)

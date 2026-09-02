@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from base64 import b64encode
 from typing import Any
 
 import requests
@@ -50,6 +51,26 @@ class GeminiLLM(BaseLLM):
     def is_configured(self) -> bool:
         return bool(settings.gemini_api_key)
 
+    def read_document(self, *, data: bytes, mime_type: str, instruction: str) -> str:
+        """Gemini accepte un PDF en entree: c'est ce qui permet de recuperer un
+        CV scanne, pour lequel aucune couche texte n'existe."""
+        if not self.is_configured():
+            raise LLMError("GEMINI_API_KEY n'est pas configure cote serveur")
+
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"inlineData": {"mimeType": mime_type, "data": b64encode(data).decode()}},
+                        {"text": instruction},
+                    ],
+                }
+            ],
+            "generationConfig": {"temperature": 0},
+        }
+        return self._text(f"{API_ROOT}/models/{settings.ai_model}:generateContent", payload)
+
     def complete_json(self, *, system: str, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
         if not self.is_configured():
             raise LLMError("GEMINI_API_KEY n'est pas configure cote serveur")
@@ -67,6 +88,14 @@ class GeminiLLM(BaseLLM):
             },
         }
 
+        text = self._text(url, payload)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"Gemini n'a pas renvoye du JSON: {text[:300]}") from exc
+
+    def _text(self, url: str, payload: dict) -> str:
+        """Appel brut, retourne la partie textuelle de la reponse."""
         try:
             response = requests.post(
                 url,
@@ -81,13 +110,9 @@ class GeminiLLM(BaseLLM):
             raise LLMError(f"Gemini a repondu {response.status_code}: {response.text[:300]}")
 
         try:
-            candidates = response.json()["candidates"]
-            text = candidates[0]["content"]["parts"][0]["text"]
+            parts = response.json()["candidates"][0]["content"]["parts"]
         except (KeyError, IndexError, ValueError) as exc:
             # Reponse tronquee, filtre de securite, quota: on remonte la cause
             raise LLMError(f"Reponse Gemini inexploitable: {response.text[:300]}") from exc
 
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise LLMError(f"Gemini n'a pas renvoye du JSON: {text[:300]}") from exc
+        return "".join(part.get("text", "") for part in parts)

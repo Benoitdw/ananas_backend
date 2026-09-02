@@ -141,6 +141,24 @@ Ce decoupage n'est pas une economie de moyens :
 - **stabilite** — deux executions donnent le meme score ;
 - **portabilite** — passer a un modele local ne touche que `ananas/ai/`.
 
+### Import d'un CV en PDF
+
+`ananas/cv_import.py`. Deux chemins, dans cet ordre :
+
+1. **Extraction locale** (pypdf) — gratuite, instantanee, independante du
+   fournisseur. C'est le cas de la plupart des CV, exportes depuis un
+   traitement de texte. Le texte est recolle (cesures, retours au milieu des
+   phrases) : sans ça le modele lit des mots coupes.
+2. **Repli sur le modele** pour les PDF *scannes*, qui n'ont aucune couche
+   texte. C'est une capacite **optionnelle** de `BaseLLM.read_document` : un
+   fournisseur qui ne la gere pas leve `NotImplementedError` et l'utilisateur
+   recoit une consigne claire, plutot qu'un profil vide.
+
+Le texte extrait n'est jamais analyse directement : il remplit le champ CV, que
+l'utilisateur relit avant de lancer l'analyse. Une extraction PDF melange
+souvent les colonnes, et un profil faux produirait des scores faux sans que
+rien ne le signale.
+
 ### Changer de fournisseur
 
 `ananas/ai/base.py` ne demande qu'une capacite : `complete_json(system, prompt,

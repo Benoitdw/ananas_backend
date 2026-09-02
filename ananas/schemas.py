@@ -260,6 +260,16 @@ class ProfilePreferencesIn(BaseModel):
     notify_only_relevant: bool | None = None
 
 
+class CvImportOut(BaseModel):
+    """Texte extrait d'un PDF, avant enregistrement."""
+
+    text: str
+    pages: int
+    filename: str
+    # 'texte' = couche texte du PDF, 'modele' = PDF scanne transcrit par le modele
+    method: str
+
+
 class ProfileOut(ORM):
     cv_text: str
     aspirations: str
