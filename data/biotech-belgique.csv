@@ -1,50 +1,50 @@
 name,type,core_business,city,country,source,lat,lon,geo_precision
-GSK – Rixensart,Biotech/Pharma,"Vaccins, Immunologie, R&D",Rixensart,Belgium,curated,,,
-GSK – Wavre,Biotech/Pharma,"Vaccins, Bioproduction, Controle qualite",Wavre,Belgium,curated,,,
-UCB Pharma – Braine-l'Alleud,Biotech/Pharma,"Biopharma, Immunologie, Neurologie",Braine-l'Alleud,Belgium,curated,,,
-UCB – Anderlecht,Biotech/Pharma,Biopharma,Anderlecht,Belgium,curated,,,
-Bristol Myers Squibb,Biotech/Pharma,"Pharma, Oncologie, Immunologie",Braine-l'Alleud,Belgium,curated,,,
-AbbVie Belgium,Biotech/Pharma,"Pharma, Immunologie, Oncologie",Wavre,Belgium,curated,,,
-Novadip Biosciences,Biotech/Pharma,"Therapie cellulaire, Medecine regenerative",Mont-Saint-Guibert,Belgium,curated,,,
-Cellistic,Biotech/Pharma,"iPSC, Therapie cellulaire",Mont-Saint-Guibert,Belgium,curated,,,
-Celyad Oncology,Biotech/Pharma,"Immuno-oncologie, Therapie cellulaire",Mont-Saint-Guibert,Belgium,curated,,,
-Exothera,Biotech/Pharma,"Bioproduction, Therapie genique, CDMO",Nivelles,Belgium,curated,,,
-DIAsource ImmunoAssays,Biotech/Pharma,"Diagnostic, Immunoassays",Nivelles,Belgium,curated,,,
-Quantoom Biosciences,Biotech/Pharma,"ARNm, Vaccins, Bioproduction",Nivelles,Belgium,curated,,,
-Univercells Technologies,Biotech/Pharma,"Vaccins, Bioproduction, Biotechnologie",Gosselies,Belgium,curated,,,
-Thermo Fisher Scientific – Henogen,Biotech/Pharma,"Bioproduction, Therapie genique, Therapie cellulaire",Gosselies,Belgium,curated,,,
-Catalent,Biotech/Pharma,"CDMO, Therapie cellulaire",Gosselies,Belgium,curated,,,
-iTeos Therapeutics,Biotech/Pharma,Immuno-oncologie,Gosselies,Belgium,curated,,,
-Ncardia,Biotech/Pharma,"iPSC, Cellules humaines",Gosselies,Belgium,curated,,,
-InhaTarget Therapeutics,Biotech/Pharma,"Oncologie, Therapeutique",Gosselies,Belgium,curated,,,
-BioSenic,Biotech/Pharma,"Therapie cellulaire, Inflammation",Gosselies,Belgium,curated,,,
-IBA,Biotech/Pharma,"Radiopharma, Medecine nucleaire",Louvain-la-Neuve,Belgium,curated,,,
-Realco,Biotech/Pharma,"Biotechnologie, Microbiologie",Louvain-la-Neuve,Belgium,curated,,,
-SGS Lab Simon,Biotech/Pharma,"Laboratoire, Testing",Bierges,Belgium,curated,,,
-OneLife,Biotech/Pharma,Diagnostic moleculaire,Louvain-la-Neuve,Belgium,curated,,,
-Baxter,Biotech/Pharma,"Pharma, Dispositifs medicaux, Production",Lessines,Belgium,curated,,,
-Pfizer Belgium,Biotech/Pharma,"Pharma, Recherche clinique",Bruxelles,Belgium,curated,,,
-MSD Belgium,Biotech/Pharma,"Pharma, Oncologie, Vaccins",Bruxelles,Belgium,curated,,,
-Alexion Pharma Belgium,Biotech/Pharma,"Maladies rares, Biopharma",Bruxelles,Belgium,curated,,,
-Boehringer Ingelheim,Biotech/Pharma,"Pharma, Biopharma",Bruxelles,Belgium,curated,,,
-Roche Diagnostics,Biotech/Pharma,"Diagnostic, Biologie medicale",Bruxelles,Belgium,curated,,,
-BioMérieux,Biotech/Pharma,Diagnostic microbiologique,Bruxelles,Belgium,curated,,,
-Sanofi Belgium,Biotech/Pharma,"Pharma, Vaccins",Machelen,Belgium,curated,,,
-Novartis Pharma,Biotech/Pharma,"Pharma, Oncologie, Immunologie",Vilvoorde,Belgium,curated,,,
-Novo Nordisk,Biotech/Pharma,"Diabete, Obesite, Biopharma",Groot-Bijgaarden,Belgium,curated,,,
-Sobi – Swedish Orphan Biovitrum,Biotech/Pharma,Maladies rares,Zaventem,Belgium,curated,,,
-Galactic,Biotech/Pharma,Biotechnologie,Bruxelles,Belgium,curated,,,
-Prothya Biosolutions,Biotech/Pharma,"Plasma, Proteines therapeutiques",Bruxelles,Belgium,curated,,,
-Precirix,Biotech/Pharma,"Radio-immunotherapie, Oncologie",Bruxelles,Belgium,curated,,,
-Kantify,Biotech/Pharma,"IA appliquee aux sciences de la vie",Bruxelles,Belgium,curated,,,
-Bausch + Lomb Pharma,Biotech/Pharma,"Ophtalmologie, Pharma",Bruxelles,Belgium,curated,,,
-UCB – Leuven,Biotech/Pharma,"Biopharma, Neurologie, Immunologie",Leuven,Belgium,curated,,,
-AstriVax,Biotech/Pharma,Vaccins,Leuven,Belgium,curated,,,
-Montis Biosciences,Biotech/Pharma,Biotechnologie therapeutique,Leuven,Belgium,curated,,,
-MIDIAGNOSTICS,Biotech/Pharma,Diagnostic moleculaire,Leuven,Belgium,curated,,,
-Replasia,Biotech/Pharma,Medecine regenerative,Leuven,Belgium,curated,,,
-icometrix,Biotech/Pharma,"Imagerie medicale, IA",Leuven,Belgium,curated,,,
-Azalea Vision,Biotech/Pharma,"Ophtalmologie, Medtech",Leuven,Belgium,curated,,,
-Qaelum,Biotech/Pharma,"Digital health, Imagerie medicale",Leuven,Belgium,curated,,,
-Nelson Labs Europe,Biotech/Pharma,"Laboratoire, Testing, Pharma",Leuven,Belgium,curated,,,
-Terumo Europe,Biotech/Pharma,"Medtech, Dispositifs medicaux",Leuven,Belgium,curated,,,
+GSK – Rixensart,Biotech/Pharma,"Vaccins, Immunologie, R&D",Rixensart,Belgium,curated,50.7122566,4.5216218,ville
+GSK – Wavre,Biotech/Pharma,"Vaccins, Bioproduction, Controle qualite",Wavre,Belgium,curated,50.7169694,4.6104160,ville
+UCB Pharma – Braine-l'Alleud,Biotech/Pharma,"Biopharma, Immunologie, Neurologie",Braine-l'Alleud,Belgium,curated,50.6828722,4.3692706,ville
+UCB – Anderlecht,Biotech/Pharma,Biopharma,Anderlecht,Belgium,curated,50.8286899,4.2895569,ville
+Bristol Myers Squibb,Biotech/Pharma,"Pharma, Oncologie, Immunologie",Braine-l'Alleud,Belgium,curated,50.6828722,4.3692706,ville
+AbbVie Belgium,Biotech/Pharma,"Pharma, Immunologie, Oncologie",Wavre,Belgium,curated,50.7169694,4.6104160,ville
+Novadip Biosciences,Biotech/Pharma,"Therapie cellulaire, Medecine regenerative",Mont-Saint-Guibert,Belgium,curated,50.6365628,4.6127019,ville
+Cellistic,Biotech/Pharma,"iPSC, Therapie cellulaire",Mont-Saint-Guibert,Belgium,curated,50.6365628,4.6127019,ville
+Celyad Oncology,Biotech/Pharma,"Immuno-oncologie, Therapie cellulaire",Mont-Saint-Guibert,Belgium,curated,50.6365628,4.6127019,ville
+Exothera,Biotech/Pharma,"Bioproduction, Therapie genique, CDMO",Nivelles,Belgium,curated,50.5976885,4.3235854,ville
+DIAsource ImmunoAssays,Biotech/Pharma,"Diagnostic, Immunoassays",Nivelles,Belgium,curated,50.5976885,4.3235854,ville
+Quantoom Biosciences,Biotech/Pharma,"ARNm, Vaccins, Bioproduction",Nivelles,Belgium,curated,50.5976885,4.3235854,ville
+Univercells Technologies,Biotech/Pharma,"Vaccins, Bioproduction, Biotechnologie",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+Thermo Fisher Scientific – Henogen,Biotech/Pharma,"Bioproduction, Therapie genique, Therapie cellulaire",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+Catalent,Biotech/Pharma,"CDMO, Therapie cellulaire",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+iTeos Therapeutics,Biotech/Pharma,Immuno-oncologie,Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+Ncardia,Biotech/Pharma,"iPSC, Cellules humaines",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+InhaTarget Therapeutics,Biotech/Pharma,"Oncologie, Therapeutique",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+BioSenic,Biotech/Pharma,"Therapie cellulaire, Inflammation",Gosselies,Belgium,curated,50.4735886,4.4492423,ville
+IBA,Biotech/Pharma,"Radiopharma, Medecine nucleaire",Louvain-la-Neuve,Belgium,curated,50.6740673,4.6138095,ville
+Realco,Biotech/Pharma,"Biotechnologie, Microbiologie",Louvain-la-Neuve,Belgium,curated,50.6740673,4.6138095,ville
+SGS Lab Simon,Biotech/Pharma,"Laboratoire, Testing",Bierges,Belgium,curated,50.7111796,4.5894025,ville
+OneLife,Biotech/Pharma,Diagnostic moleculaire,Louvain-la-Neuve,Belgium,curated,50.6740673,4.6138095,ville
+Baxter,Biotech/Pharma,"Pharma, Dispositifs medicaux, Production",Lessines,Belgium,curated,50.7123036,3.8301131,ville
+Pfizer Belgium,Biotech/Pharma,"Pharma, Recherche clinique",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+MSD Belgium,Biotech/Pharma,"Pharma, Oncologie, Vaccins",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Alexion Pharma Belgium,Biotech/Pharma,"Maladies rares, Biopharma",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Boehringer Ingelheim,Biotech/Pharma,"Pharma, Biopharma",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Roche Diagnostics,Biotech/Pharma,"Diagnostic, Biologie medicale",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+BioMérieux,Biotech/Pharma,Diagnostic microbiologique,Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Sanofi Belgium,Biotech/Pharma,"Pharma, Vaccins",Machelen,Belgium,curated,50.9015217,4.4467847,ville
+Novartis Pharma,Biotech/Pharma,"Pharma, Oncologie, Immunologie",Vilvoorde,Belgium,curated,50.9287110,4.4231260,ville
+Novo Nordisk,Biotech/Pharma,"Diabete, Obesite, Biopharma",Groot-Bijgaarden,Belgium,curated,50.8707084,4.2651493,ville
+Sobi – Swedish Orphan Biovitrum,Biotech/Pharma,Maladies rares,Zaventem,Belgium,curated,50.8806207,4.4730008,ville
+Galactic,Biotech/Pharma,Biotechnologie,Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Prothya Biosolutions,Biotech/Pharma,"Plasma, Proteines therapeutiques",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Precirix,Biotech/Pharma,"Radio-immunotherapie, Oncologie",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Kantify,Biotech/Pharma,IA appliquee aux sciences de la vie,Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+Bausch + Lomb Pharma,Biotech/Pharma,"Ophtalmologie, Pharma",Bruxelles,Belgium,curated,50.8467372,4.3524930,ville
+UCB – Leuven,Biotech/Pharma,"Biopharma, Neurologie, Immunologie",Leuven,Belgium,curated,50.8792020,4.7011675,ville
+AstriVax,Biotech/Pharma,Vaccins,Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Montis Biosciences,Biotech/Pharma,Biotechnologie therapeutique,Leuven,Belgium,curated,50.8792020,4.7011675,ville
+MIDIAGNOSTICS,Biotech/Pharma,Diagnostic moleculaire,Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Replasia,Biotech/Pharma,Medecine regenerative,Leuven,Belgium,curated,50.8792020,4.7011675,ville
+icometrix,Biotech/Pharma,"Imagerie medicale, IA",Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Azalea Vision,Biotech/Pharma,"Ophtalmologie, Medtech",Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Qaelum,Biotech/Pharma,"Digital health, Imagerie medicale",Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Nelson Labs Europe,Biotech/Pharma,"Laboratoire, Testing, Pharma",Leuven,Belgium,curated,50.8792020,4.7011675,ville
+Terumo Europe,Biotech/Pharma,"Medtech, Dispositifs medicaux",Leuven,Belgium,curated,50.8792020,4.7011675,ville

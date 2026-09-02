@@ -1,15 +1,22 @@
-"""Import du repertoire d'entreprises depuis le CSV du POC BioWin.
+"""Import du repertoire d'entreprises depuis les CSV de ``data/``.
 
-    python -m ananas.seed [--csv chemin] [--update] [--link-only]
+    python -m ananas.seed [--csv chemin]... [--update] [--link-only]
 
-Le geocodage a deja ete paye dans le POC (Nominatim, ~1 requete/seconde):
-les 81 partenaires arrivent avec leur lat/lon, la carte est peuplee des le
-premier demarrage.
+Deux fichiers sont charges par defaut, dans cet ordre:
 
-Idempotent: l'upsert se fait sur ``source_url``, la relance ne cree pas de
-doublon. Par defaut les entreprises deja presentes ne sont pas modifiees, pour
-ne pas ecraser un ``careers_url`` renseigne a la main; ``--update`` force le
-rafraichissement des champs descriptifs (jamais careers_url ni scraper_key).
+  - ``partners.csv``          les 81 partenaires du POC BioWin (source 'biowin')
+  - ``biotech-belgique.csv``  49 biotech/pharma belges (source 'curated')
+
+Le geocodage est deja paye a l'ecriture du CSV (Nominatim, ~1 requete/seconde,
+voir ``python -m ananas.geocode_csv``): les entreprises arrivent avec leur
+lat/lon, la carte est peuplee des le premier demarrage.
+
+Idempotent: l'upsert se fait sur ``source_url`` quand le CSV en fournit un
+(BioWin), sinon sur le couple (source, slug) — la relance ne cree pas de
+doublon dans les deux cas. Par defaut les entreprises deja presentes ne sont
+pas modifiees, pour ne pas ecraser un ``careers_url`` renseigne a la main;
+``--update`` force le rafraichissement des champs descriptifs (jamais
+careers_url ni scraper_key).
 
 Le seed se termine par un auto-liage: tout scraper dont la ``key`` egale le
 slug d'une entreprise est branche automatiquement. C'est ce qui permet de dire
@@ -24,15 +31,17 @@ import csv
 import re
 import sys
 import unicodedata
+from collections.abc import Sequence
 from pathlib import Path
 
 from sqlalchemy import select
 
 from ananas.db import session_scope
-from ananas.models import Company
+from ananas.models import SOURCE_BIOWIN, Company
 from ananas.scrapers.registry import load_scrapers
 
-DEFAULT_CSV = Path(__file__).resolve().parent.parent / "data" / "partners.csv"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DEFAULT_CSVS = (DATA_DIR / "partners.csv", DATA_DIR / "biotech-belgique.csv")
 
 # Champs recopies tels quels du CSV. careers_url et scraper_key n'y sont pas:
 # ils sont propres a Ananas et se remplissent a la main.
@@ -73,36 +82,53 @@ def load_rows(csv_path: Path) -> list[dict]:
         return [row for row in csv.DictReader(f) if (row.get("name") or "").strip()]
 
 
-def seed(csv_path: Path = DEFAULT_CSV, update: bool = False) -> tuple[int, int, int]:
+def seed(
+    csv_paths: Sequence[Path] = DEFAULT_CSVS, update: bool = False
+) -> tuple[int, int, int]:
     """Retourne (crees, mis a jour, inchanges)."""
-    if not csv_path.exists():
-        raise SystemExit(f"CSV introuvable: {csv_path}")
+    for csv_path in csv_paths:
+        if not csv_path.exists():
+            raise SystemExit(f"CSV introuvable: {csv_path}")
 
-    rows = load_rows(csv_path)
     created = updated = untouched = 0
 
     with session_scope() as db:
-        existing = {c.source_url: c for c in db.scalars(select(Company)) if c.source_url}
-        taken = {c.slug for c in db.scalars(select(Company))}
+        companies = list(db.scalars(select(Company)))
+        by_url = {c.source_url: c for c in companies if c.source_url}
+        # Cle de repli pour les CSV sans fiche d'origine. Le couple (source,
+        # slug) et non le slug seul: une entreprise proposee par un
+        # utilisateur porte le meme slug qu'une homonyme du repertoire, et le
+        # seed n'a pas a l'ecraser.
+        by_source_slug = {(c.source, c.slug): c for c in companies}
+        taken = {c.slug for c in companies}
 
-        for row in rows:
-            values = {field: (row.get(field) or "").strip() for field in CSV_FIELDS}
-            values["source_url"] = (row.get("url") or "").strip()
-            values["lat"] = _as_float(row.get("lat"))
-            values["lon"] = _as_float(row.get("lon"))
+        for csv_path in csv_paths:
+            for row in load_rows(csv_path):
+                values = {field: (row.get(field) or "").strip() for field in CSV_FIELDS}
+                values["source"] = (row.get("source") or "").strip() or SOURCE_BIOWIN
+                values["source_url"] = (row.get("url") or "").strip()
+                values["lat"] = _as_float(row.get("lat"))
+                values["lon"] = _as_float(row.get("lon"))
 
-            company = existing.get(values["source_url"]) if values["source_url"] else None
+                slug = slugify(values["name"])
+                if values["source_url"]:
+                    company = by_url.get(values["source_url"])
+                else:
+                    company = by_source_slug.get((values["source"], slug))
 
-            if company is None:
-                company = Company(slug=unique_slug(slugify(values["name"]), taken), **values)
-                db.add(company)
-                created += 1
-            elif update:
-                for key, value in values.items():
-                    setattr(company, key, value)
-                updated += 1
-            else:
-                untouched += 1
+                if company is None:
+                    company = Company(slug=unique_slug(slug, taken), **values)
+                    db.add(company)
+                    by_source_slug[(company.source, company.slug)] = company
+                    if company.source_url:
+                        by_url[company.source_url] = company
+                    created += 1
+                elif update:
+                    for key, value in values.items():
+                        setattr(company, key, value)
+                    updated += 1
+                else:
+                    untouched += 1
 
     return created, updated, untouched
 
@@ -133,7 +159,13 @@ def link_scrapers() -> list[tuple[str, str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ananas-seed", description=__doc__)
-    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        action="append",
+        dest="csvs",
+        help=f"a repeter pour cumuler; defaut: {', '.join(p.name for p in DEFAULT_CSVS)}",
+    )
     parser.add_argument(
         "--update",
         action="store_true",
@@ -147,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not args.link_only:
-        created, updated, untouched = seed(args.csv, update=args.update)
+        created, updated, untouched = seed(args.csvs or DEFAULT_CSVS, update=args.update)
         total = created + updated + untouched
         print(
             f"{total} entreprises importees "

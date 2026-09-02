@@ -23,7 +23,7 @@ En autonome (base Postgres deja disponible) :
 pip install -e .
 export DATABASE_URL="postgresql+psycopg://ananas:ananas@localhost:5432/ananas"
 alembic upgrade head
-python -m ananas.seed            # importe les 81 entreprises de data/partners.csv
+python -m ananas.seed            # importe les 130 entreprises des CSV de data/
 uvicorn ananas.api.main:app --reload
 ```
 
@@ -33,18 +33,33 @@ uvicorn ananas.api.main:app --reload
 ananas/
 ├── models.py        7 tables SQLAlchemy
 ├── security.py      argon2 + JWT en cookie httpOnly
-├── seed.py          import CSV + auto-liage des scrapers
+├── seed.py          import des CSV + auto-liage des scrapers
+├── geocode_csv.py   remplit lat/lon d'un CSV, une fois pour toutes
+├── admin.py         cree le compte d'administration (hors HTTP)
 ├── api/             routes FastAPI
 ├── scrapers/        BaseScraper, registre, exemple QbD Group
 ├── notifiers/       BaseNotifier, registre, Telegram
 └── worker/          planification, scrape, notification
 ```
 
-### Deux provenances, un seul vocabulaire de tags
+### Trois provenances, un seul vocabulaire de tags
 
-`companies.source` vaut `biowin` (les 81 importees du CSV) ou `from_user`
-(proposees via `POST /api/companies`). Une entreprise proposee est une
-entreprise a part entiere: visible, filtrable et enregistrable par tous.
+`companies.source` vaut `biowin` (les 81 partenaires du POC, `data/partners.csv`),
+`curated` (les 49 biotech/pharma belges de `data/biotech-belgique.csv`) ou
+`from_user` (proposees via `POST /api/companies`). Une entreprise proposee est
+une entreprise a part entiere: visible, filtrable et enregistrable par tous.
+
+Ajouter un lot d'entreprises = deposer un CSV dans `data/`, le geocoder une
+fois, l'ajouter a `DEFAULT_CSVS` (seed.py):
+
+```bash
+python -m ananas.geocode_csv data/mon-lot.csv   # ~1 s par ligne, Nominatim
+python -m ananas.seed
+```
+
+Le CSV n'a besoin que de `name`; `source` vaut `biowin` s'il est absent. Les
+lignes sans `url` (fiche BioWin d'origine) sont reconciliees sur le couple
+`(source, slug)`, donc relancer le seed ne cree pas de doublon.
 
 Les secteurs BioWin vivent dans `core_business`, les tags utilisateur dans
 `tags`. Le filtre et la liste de facettes interrogent **les deux colonnes**:
@@ -59,6 +74,51 @@ servent a rien:
   presente** dans le repertoire quand elle existe a la casse pres. Sans lui,
   "Administrative & Office support" et "... Support" cohabiteraient dans le
   filtre.
+
+### Qui peut modifier une fiche
+
+Une seule fonction, `may_edit` (api/companies.py), et une seule route
+(`PATCH /api/companies/{id}`) pour l'administration comme pour l'utilisateur
+qui corrige sa propre proposition. Deux routes auraient fini par diverger, et
+c'est la plus permissive qui aurait fait foi ; `tests/test_permissions.py`
+verrouille la regle.
+
+```
+administration    -> toutes les fiches
+auteur d'une fiche -> la sienne (companies.submitted_by_user_id)
+tout le monde      -> rien
+```
+
+`CompanyDetail.can_edit` transporte le verdict jusqu'a l'interface : le front
+n'a aucune regle a reimplementer, il affiche ou non un bouton.
+
+Deux details qui comptent :
+
+- **Le slug ne suit pas le nom.** C'est une identite : URL partagee, et cle
+  d'auto-liage d'un scraper dans `seed.py`. Renommer ne doit rien casser.
+- **L'adresse n'est re-geocodee que si elle change.** Sans cette condition,
+  corriger un telephone sur une fiche BioWin lui ferait perdre sa precision
+  `adresse` heritee du POC pour la repasser au geocodeur.
+
+### Le compte d'administration
+
+`is_admin` ne s'accorde par aucune route — `ananas/admin.py` est une commande :
+
+```bash
+python -m ananas.admin              # lit ADMIN_EMAIL / ADMIN_PASSWORD du .env
+python -m ananas.admin --email a@b.c --password '...'
+python -m ananas.admin --revoke a@b.c
+```
+
+Elle est idempotente : le compte est cree s'il n'existe pas, promu s'il existe,
+et son mot de passe reecrit a chaque passage — changer le mot de passe admin,
+c'est editer le `.env` et relancer. Une elevation de privilege demande donc un
+acces au serveur, pas une faille dans le formulaire d'inscription.
+
+`api/admin.py` (`GET /api/admin/users`, `/stats`) est en **lecture seule et
+sans contenu** : compteurs d'usage, jamais le CV, les aspirations ou le
+`chat_id` Telegram d'un compte. Ces donnees ne servent pas a moderer un
+repertoire, et les exposer ferait de la page admin une cible.
 
 ### Les deux garanties du schema
 
@@ -115,8 +175,23 @@ Si la cle ne peut pas egaler le slug, renseigne `companies.scraper_key` a la mai
 - Une exception levee dans `fetch()` marque l'entreprise en erreur et laisse le
   reste du run continuer. Surtout, aucune offre n'est fermee ce jour-la.
 
-`ananas/scrapers/qbd_group.py` est un exemple complet et commente, qui factorise
-la logique par ATS (`TeamtailorScraper`) plutot que par entreprise.
+Deux familles d'ATS sont deja factorisees, chacune reutilisable pour une autre
+entreprise en quelques lignes :
+
+| module | ATS | entreprises | ce qu'il faut declarer |
+|---|---|---|---|
+| `qbd_group.py` | Teamtailor (flux RSS) | QbD Group | `base_url` |
+| `phenom.py` + `gsk.py` | Phenom People (`phApp.ddo`) | GSK Wavre, GSK Rixensart | `base_url`, `search_location`, `town` |
+
+**Piege Phenom, non evident.** La recherche par lieu de ces sites est une
+recherche de *proximite*, pas un filtre : interroger « Rixensart » renvoie une
+cinquantaine de postes dont plusieurs a Londres ou Collegeville. D'ou
+l'attribut `town` et le filtrage sur `multi_location` — et non sur `city`, car
+un poste ouvert a la fois a Londres et a Rixensart porte `city = London` tout
+en concernant bien le site local.
+
+Ces sites sont rendus en JavaScript, mais le serveur embarque l'etat initial
+dans `phApp.ddo` : aucun navigateur headless n'est necessaire.
 
 ## Correspondance offre / profil
 
@@ -238,6 +313,11 @@ et retourne **comment** le point a ete place (`adresse`, `ville`,
 `approx. (nom)`, `non localise`), pour que l'interface le signale. Appelee a la
 soumission d'une entreprise (~1 s, limite de debit Nominatim oblige), avec un
 cache process-local qui retient aussi les echecs.
+
+Le seed, lui, ne geocode **jamais**: il lit des coordonnees deja presentes dans
+le CSV. Sinon chaque demarrage repaierait la seconde par ligne. Le prix est
+paye une fois par `python -m ananas.geocode_csv <fichier>`, qui ne reprend que
+les lignes sans coordonnees et versionne le resultat avec le CSV.
 
 ## Migrations
 

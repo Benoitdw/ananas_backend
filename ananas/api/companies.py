@@ -1,14 +1,16 @@
 """Repertoire d'entreprises: ce qui peuple la carte, la fiche de detail, et le
 formulaire de proposition.
 
-Deux provenances cohabitent dans la meme table: les 81 partenaires importes du
-repertoire BioWin (`source='biowin'`) et celles proposees par les utilisateurs
+Trois provenances cohabitent dans la meme table: les 81 partenaires importes du
+repertoire BioWin (`source='biowin'`), les 49 biotech/pharma belges du
+repertoire Ananas (`source='curated'`) et celles proposees par les utilisateurs
 (`source='from_user'`). Une entreprise proposee est une entreprise a part
 entiere — visible, filtrable et enregistrable par tout le monde.
 """
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -31,6 +33,7 @@ from ananas.schemas import (
     CompanyFacets,
     CompanyListItem,
     CompanySubmitIn,
+    CompanyUpdateIn,
     JobOut,
 )
 from ananas.scrapers.registry import get_scraper
@@ -82,7 +85,7 @@ def list_companies(
     type: str | None = Query(None),
     tag: str | None = Query(None, description="un tag, BioWin ou utilisateur"),
     core_business: str | None = Query(None, deprecated=True, description="alias de `tag`"),
-    source: str | None = Query(None, description="'biowin' ou 'from_user'"),
+    source: str | None = Query(None, description="'biowin', 'curated' ou 'from_user'"),
     saved_only: bool = Query(False),
 ) -> list[CompanyListItem]:
     """Toute la carte en une requete: la charge utile est volontairement legere."""
@@ -252,6 +255,123 @@ def _domain(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def may_edit(company: Company, user: User | None) -> bool:
+    """Qui peut corriger une fiche.
+
+    L'administration partout, et l'utilisateur sur *sa* proposition: c'est lui
+    qui connait l'entreprise qu'il a ajoutee, et une faute de frappe dans son
+    adresse ne devrait pas demander une intervention. Personne d'autre — le
+    repertoire est partage, une fiche BioWin ou Ananas n'appartient a aucun
+    compte.
+    """
+    if user is None:
+        return False
+    return bool(user.is_admin or (company.submitted_by_user_id == user.id))
+
+
+def _bare_city(city: str) -> str:
+    """'1210 BRUXELLES' -> 'BRUXELLES'.
+
+    La colonne ``city`` stocke le code postal en prefixe (voir
+    ``submit_company``), et le formulaire d'edition la reaffiche telle quelle.
+    Sans ce nettoyage, enregistrer deux fois donnerait '1210 1210 BRUXELLES'.
+    """
+    return re.sub(r"^\d{4,5}\s+", "", city or "").strip()
+
+
+@router.patch("/{company_id}", response_model=CompanyDetail)
+def update_company(
+    company_id: int,
+    payload: CompanyUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> CompanyDetail:
+    """Corrige une fiche du repertoire.
+
+    Le ``slug`` ne suit pas le nom: c'est une identite (URL, cle d'auto-liage
+    d'un scraper dans seed.py). Renommer une entreprise ne doit pas casser un
+    lien deja partage ni delier son scraper.
+
+    L'adresse n'est re-geocodee que si elle a change. Sans cette condition,
+    corriger un numero de telephone sur une fiche BioWin lui ferait perdre sa
+    precision 'adresse' heritee du POC pour la repasser au geocodeur.
+    """
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entreprise inconnue")
+    if not may_edit(company, user):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Seule l'administration peut modifier cette fiche",
+        )
+
+    data = payload.model_dump(exclude_unset=True)
+
+    if (name := data.get("name")) and name != company.name:
+        clash = db.scalar(
+            select(Company).where(Company.slug == slugify(name), Company.id != company.id)
+        )
+        if clash:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                {
+                    "detail": f"« {clash.name} » porte deja ce nom.",
+                    "company_id": clash.id,
+                    "company_name": clash.name,
+                },
+            )
+
+    if website := data.get("website"):
+        domain = _domain(website)
+        for candidate in db.scalars(select(Company).where(Company.website != "")):
+            if candidate.id != company.id and _domain(candidate.website) == domain:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    {
+                        "detail": f"« {candidate.name} » utilise deja ce domaine.",
+                        "company_id": candidate.id,
+                        "company_name": candidate.name,
+                    },
+                )
+
+    if (tags := data.pop("tags", None)) is not None:
+        company.tags = ", ".join(_canonical_tags(db, tags))
+
+    if "careers_url" in data:
+        company.careers_url = data.pop("careers_url") or None
+
+    address_before = (
+        company.street,
+        company.postal_code,
+        _bare_city(company.city),
+        company.country,
+    )
+
+    for field, value in data.items():
+        setattr(company, field, value)
+
+    street = company.street
+    postal = company.postal_code
+    city = _bare_city(company.city)
+    country = company.country
+
+    company.city = " ".join(p for p in (postal, city) if p)
+    company.address = ", ".join(
+        p for p in (street, f"{postal} {city}".strip(), country) if p
+    )
+
+    if (street, postal, city, country) != address_before:
+        from ananas.geocoding import geocode
+
+        company.lat, company.lon, company.geo_precision = geocode(
+            street=street, city=company.city, country=country, name=company.name
+        )
+
+    db.commit()
+    db.refresh(company)
+    return _detail(db, company, user)
+
+
 def _detail(db: Session, company: Company, user: User | None) -> CompanyDetail:
     """Les offres portent leur score quand l'utilisateur a un profil: c'est ce
     qui permet de n'afficher que les offres pertinentes d'une entreprise."""
@@ -276,6 +396,7 @@ def _detail(db: Session, company: Company, user: User | None) -> CompanyDetail:
 
     detail = CompanyDetail.model_validate(company)
     detail.is_saved = company.id in _saved_ids(db, user)
+    detail.can_edit = may_edit(company, user)
     detail.jobs = jobs
     detail.submitted_by_email = company.submitted_by.email if company.submitted_by else None
     profile = db.get(UserProfile, user.id) if user else None

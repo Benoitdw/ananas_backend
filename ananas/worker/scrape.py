@@ -125,19 +125,29 @@ def _scrape_one(db: Session, company: Company) -> CompanyResult:
     scraper_cls = get_scraper(company.scraper_key)
     now = datetime.now(UTC)
 
-    try:
-        postings = scraper_cls(company).run()
-    except ScraperError as exc:
-        # Erreur isolee: on marque l'entreprise et on passe a la suivante.
-        # Surtout, on ne ferme aucune offre.
+    def failed(exc: Exception) -> CompanyResult:
+        """Isole l'echec: on marque l'entreprise et on passe a la suivante.
+        Surtout, on ne ferme aucune de ses offres."""
         log.error("%s: %s", company.name, exc)
+        db.rollback()
         company.last_scraped_at = now
         company.last_scrape_status = "error"
         company.last_scrape_error = str(exc)[:2000]
         db.commit()
         return CompanyResult(company=company.name, ok=False, error=str(exc))
 
-    new, closed = _sync_jobs(db, company, postings, now)
+    try:
+        postings = scraper_cls(company).run()
+    except ScraperError as exc:
+        return failed(exc)
+
+    try:
+        new, closed = _sync_jobs(db, company, postings, now)
+    except Exception as exc:  # noqa: BLE001
+        # Donnees inattendues (champ trop long, encodage): l'ecriture echoue
+        # mais le run doit continuer, sinon une seule entreprise fait perdre
+        # la passe quotidienne et la notification de tout le monde.
+        return failed(exc)
 
     company.last_scraped_at = now
     company.last_scrape_status = "ok"
@@ -147,6 +157,10 @@ def _scrape_one(db: Session, company: Company) -> CompanyResult:
     return CompanyResult(
         company=company.name, ok=True, found=len(postings), new=new, closed=closed
     )
+
+
+def _cut(value: str | None, length: int) -> str | None:
+    return value[:length] if value else value
 
 
 def _sync_jobs(
@@ -175,9 +189,11 @@ def _sync_jobs(
                     fingerprint=fingerprint,
                     title=posting.title.strip()[:500],
                     url=posting.url[:1000],
-                    location=posting.location,
+                    # Troncatures defensives: un scraper tiers ne doit pas
+                    # pouvoir faire echouer l'insertion de tout un lot.
+                    location=_cut(posting.location, 255),
                     description=posting.description,
-                    department=posting.department,
+                    department=_cut(posting.department, 160),
                     posted_at=posting.posted_at,
                     first_seen_at=now,
                     last_seen_at=now,
@@ -191,11 +207,11 @@ def _sync_jobs(
         job.last_seen_at = now
         job.title = posting.title.strip()[:500]
         job.url = posting.url[:1000]
-        job.location = posting.location
+        job.location = _cut(posting.location, 255)
         if posting.description:
             job.description = posting.description
         if posting.department:
-            job.department = posting.department
+            job.department = _cut(posting.department, 160)
         if posting.posted_at:
             job.posted_at = posting.posted_at
         # Une offre republiee apres avoir disparu: on la rouvre sans la

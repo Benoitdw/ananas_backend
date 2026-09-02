@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cors_origins: str = "http://localhost:5173"
 
+    # --- compte d'administration (voir `python -m ananas.admin`)
+    # Lu uniquement par cette commande: l'API ne s'en sert jamais, et aucune
+    # route ne peut promouvoir un compte. Le mot de passe n'est donc present
+    # que dans le .env, jamais en base en clair ni dans un JWT.
+    admin_email: str = ""
+    admin_password: str = ""
+
     # --- notifications
     telegram_bot_token: str = ""
 

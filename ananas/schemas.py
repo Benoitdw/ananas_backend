@@ -29,6 +29,7 @@ class UserOut(ORM):
     id: int
     email: str
     created_at: datetime
+    is_admin: bool = False
 
 
 # -------------------------------------------------------------------- offres
@@ -107,6 +108,8 @@ class CompanyDetail(ORM):
     scraper_key: str | None
     last_scraped_at: datetime | None
     is_saved: bool = False
+    # L'administration, ou l'utilisateur qui a propose cette entreprise
+    can_edit: bool = False
     jobs: list[JobOut] = []
     # Seuil de l'utilisateur, pour que le front puisse proposer
     # "offres pertinentes uniquement" sans second appel
@@ -208,6 +211,100 @@ class SubmitConflict(BaseModel):
     detail: str
     company_id: int
     company_name: str
+
+
+# -------------------------------------------------- edition d'une entreprise
+
+
+class CompanyUpdateIn(BaseModel):
+    """Champs modifiables d'une fiche, tous facultatifs (semantique PATCH).
+
+    Un champ absent n'est pas touche — c'est ce qui permet a l'interface
+    d'envoyer une correction de detail sans reposter toute la fiche, et de ne
+    jamais ecraser par du vide ce qu'elle n'affiche pas.
+
+    Volontairement absents: `source`, `slug`, `scraper_key` et les
+    coordonnees. Les deux premiers sont des identites, le troisieme se branche
+    par le nom du fichier de scraper (voir seed.py), et les coordonnees sont
+    recalculees par le serveur quand l'adresse change.
+    """
+
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    tags: list[str] | None = None
+
+    website: str | None = None
+    careers_url: str | None = None
+    type: str | None = None
+    baseline: str | None = Field(default=None, max_length=500)
+    description: str | None = Field(default=None, max_length=4000)
+
+    street: str | None = None
+    postal_code: str | None = None
+    city: str | None = None
+    country: str | None = None
+
+    email: str | None = None
+    phone: str | None = None
+    linkedin: str | None = None
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def _clean_tags(cls, tags: list[str] | None) -> list[str] | None:
+        if tags is None:
+            return None
+        seen: dict[str, None] = {}
+        for tag in tags:
+            if normalized := normalize_tag(tag):
+                seen.setdefault(normalized, None)
+        if len(seen) > MAX_TAGS:
+            raise ValueError(f"{MAX_TAGS} tags au maximum")
+        return list(seen)
+
+    @field_validator("website", "careers_url", "linkedin", mode="after")
+    @classmethod
+    def _clean_url(cls, url: str | None) -> str | None:
+        if url is None:
+            return None
+        url = url.strip()
+        if url and not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+        return url[:500]
+
+    @field_validator("name", "type", "street", "postal_code", "city", "country", "email", "phone")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
+# ------------------------------------------------------------ administration
+
+
+class AdminUserOut(ORM):
+    """Une ligne du tableau des comptes.
+
+    Les compteurs disent l'essentiel de ce qu'un compte fait de l'outil —
+    entreprises suivies, canal de notification configure, profil analyse —
+    sans donner acces a son contenu: ni CV, ni aspirations, ni chat_id.
+    """
+
+    id: int
+    email: str
+    created_at: datetime
+    is_active: bool
+    is_admin: bool
+    saved_companies: int = 0
+    submitted_companies: int = 0
+    channels: int = 0
+    has_profile: bool = False
+
+
+class AdminStatsOut(BaseModel):
+    users: int
+    companies: int
+    companies_by_source: dict[str, int]
+    user_submissions: int
+    jobs_open: int
+    scrapers: int
 
 
 # ------------------------------------------------------------------- canaux

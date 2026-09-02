@@ -90,3 +90,17 @@ def get_current_user(user: User | None = Depends(get_current_user_optional)) -> 
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentification requise"
         )
     return user
+
+
+def get_current_admin(user: User = Depends(get_current_user)) -> User:
+    """Administrateur obligatoire.
+
+    403 et non 404: l'existence des routes d'administration n'est pas un
+    secret, seul l'acces l'est. Le drapeau se pose par `python -m ananas.admin`,
+    aucune route ne l'accorde.
+    """
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Reserve a l'administration"
+        )
+    return user
