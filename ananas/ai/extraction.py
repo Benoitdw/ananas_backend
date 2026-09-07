@@ -116,9 +116,16 @@ son CV et de ce qu'elle recherche.
 - `summary`: deux phrases maximum, en francais."""
 
 
-def _clean(values: list[str]) -> list[str]:
-    """Minuscules, sans doublon, ordre conserve. Filet de securite: le modele
-    respecte la consigne la plupart du temps, pas toujours."""
+def normalize_terms(values: list[str]) -> list[str]:
+    """Minuscules, sans doublon, ordre conserve.
+
+    Filet de securite cote modele — il respecte la consigne la plupart du
+    temps, pas toujours — et **regle de vocabulaire partagee**: les corrections
+    manuelles du profil (``PATCH /api/me/profile/data``) passent par ici aussi.
+    Une competence saisie "Western Blot" a la main doit devenir le meme
+    "western blot" que celui extrait d'une offre, sans quoi les deux ne se
+    rencontreraient jamais dans ``ananas.ai.matching``.
+    """
     return list(dict.fromkeys(v.strip().lower() for v in values if v and v.strip()))
 
 
@@ -150,7 +157,7 @@ def finalize_job_data(data: dict) -> dict:
     role_family en minuscules. Meme traitement, que la reponse vienne d'un
     appel direct ou d'un lot recolte plus tard."""
     for key in ("skills", "nice_to_have", "domains", "languages", "locations"):
-        data[key] = _clean(data.get(key) or [])
+        data[key] = normalize_terms(data.get(key) or [])
     data["role_family"] = (data.get("role_family") or "").strip().lower()
     return data
 
@@ -188,5 +195,5 @@ def extract_profile(*, cv: str, aspirations: str) -> dict:
     data = provider.complete_json(system=PROFILE_SYSTEM, prompt=prompt, schema=PROFILE_SCHEMA)
 
     for key in ("role_families", "skills", "domains", "languages", "locations", "avoid"):
-        data[key] = _clean(data.get(key) or [])
+        data[key] = normalize_terms(data.get(key) or [])
     return data

@@ -419,6 +419,97 @@ class ProfilePreferencesIn(BaseModel):
     notify_only_relevant: bool | None = None
 
 
+# Nombre d'entrees par liste. Genereux — un CV riche depasse facilement
+# vingt competences — mais borne: la charge utile est rejouee a chaque
+# scoring, et une liste de mille termes ralentirait tout le monde.
+MAX_PROFILE_TERMS = 80
+MAX_TERM_LENGTH = 80
+
+
+class ProfileDataIn(BaseModel):
+    """Correction manuelle du profil structure, champ par champ (PATCH).
+
+    Ce que le modele a compris n'est pas toujours juste, et reecrire son CV
+    pour faire disparaitre une competence mal lue est un detour absurde. Cette
+    route corrige directement le resultat — celui qui sert au calcul des
+    scores.
+
+    Deux contraintes tiennent la coherence du systeme:
+
+      - les termes libres repassent par ``normalize_terms``, la meme fonction
+        que l'extraction: une competence corrigee a la main doit atterrir dans
+        le vocabulaire exact des offres, sinon elle ne matchera jamais;
+      - ``seniority``, ``remote`` et ``contracts`` restent bornes aux echelles
+        partagees, que ``ananas.ai.matching`` sait comparer.
+
+    Un champ absent n'est pas touche. ``contracts`` est accepte par souci de
+    fidelite au profil extrait, mais n'entre pas dans le score aujourd'hui.
+    """
+
+    role_families: list[str] | None = None
+    seniority: str | None = None
+    years_experience: int | None = Field(default=None, ge=0, le=60)
+    skills: list[str] | None = None
+    domains: list[str] | None = None
+    languages: list[str] | None = None
+    locations: list[str] | None = None
+    contracts: list[str] | None = None
+    remote: str | None = None
+    avoid: list[str] | None = None
+
+    @field_validator(
+        "role_families", "skills", "domains", "languages", "locations", "avoid", mode="after"
+    )
+    @classmethod
+    def _clean_terms(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        from ananas.ai.extraction import normalize_terms
+
+        cleaned = normalize_terms([v[:MAX_TERM_LENGTH] for v in values])
+        if len(cleaned) > MAX_PROFILE_TERMS:
+            raise ValueError(f"{MAX_PROFILE_TERMS} entrees au maximum par champ")
+        return cleaned
+
+    @field_validator("seniority", mode="after")
+    @classmethod
+    def _check_seniority(cls, value: str | None) -> str | None:
+        from ananas.ai.extraction import SENIORITY
+
+        return _one_of(value, SENIORITY, "niveau")
+
+    @field_validator("remote", mode="after")
+    @classmethod
+    def _check_remote(cls, value: str | None) -> str | None:
+        from ananas.ai.extraction import REMOTE
+
+        return _one_of(value, REMOTE, "mode de travail")
+
+    @field_validator("contracts", mode="after")
+    @classmethod
+    def _check_contracts(cls, values: list[str] | None) -> list[str] | None:
+        from ananas.ai.extraction import CONTRACT
+
+        if values is None:
+            return None
+        return list(dict.fromkeys(_one_of(v, CONTRACT, "contrat") for v in values))
+
+
+def _one_of(value: str | None, allowed: list[str], label: str) -> str | None:
+    """Borne une valeur a une echelle partagee avec l'extraction.
+
+    Refuser plutot que corriger en silence: une valeur hors echelle ne peut
+    venir que d'un client qui ne parle pas le meme vocabulaire, et l'accepter
+    donnerait un profil que le scoring ignorerait sans rien dire.
+    """
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized not in allowed:
+        raise ValueError(f"{label} inconnu: {value!r} (attendu: {', '.join(allowed)})")
+    return normalized
+
+
 class CvImportOut(BaseModel):
     """Texte extrait d'un PDF, avant enregistrement."""
 

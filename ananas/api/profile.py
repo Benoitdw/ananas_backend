@@ -11,13 +11,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from ananas.ai.service import ai_ready, extract_user_profile
+from ananas.ai.service import ai_ready, extract_user_profile, score_all_for_user
 from ananas.cv_import import MAX_BYTES, CvImportError, read_cv
 from ananas.db import get_db
 from ananas.models import User, UserProfile
 from ananas.schemas import (
     CvImportOut,
     MessageOut,
+    ProfileDataIn,
     ProfileIn,
     ProfileOut,
     ProfilePreferencesIn,
@@ -98,6 +99,50 @@ def import_cv(
     return CvImportOut(
         text=text, pages=pages, method=method, filename=file.filename or "cv.pdf"
     )
+
+
+@router.patch("/data", response_model=ProfileOut)
+def update_data(
+    payload: ProfileDataIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProfileOut:
+    """Corrige ce que le modele a compris, sans repasser par le CV.
+
+    Une extraction se trompe: elle invente un metier vise, oublie une langue,
+    range une competence dans le mauvais champ. Reecrire son CV pour obtenir un
+    resultat different serait un detour absurde — surtout que rien ne garantit
+    que la seconde extraction ferait mieux.
+
+    Le profil est **rescore immediatement**: corriger un terme sans que les
+    scores bougent ne serait qu'un affichage. ``version`` s'incremente pour la
+    meme raison que lors d'une extraction — les scores calcules avant la
+    correction sont perimes.
+
+    Attention: une nouvelle analyse du CV ecrase ces corrections. C'est assume
+    (l'extraction repart du texte, seule source de verite dont elle dispose),
+    et l'interface le dit.
+    """
+    profile = _get_or_create(db, user)
+    if not profile.is_ready or profile.data is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Analyse ton profil avant de pouvoir le corriger.",
+        )
+
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        return _out(profile)
+
+    # Reaffectation plutot que mutation en place: SQLAlchemy ne detecte pas la
+    # modification d'un dict JSON deja attache a la session.
+    profile.data = {**profile.data, **changes}
+    profile.version += 1
+    db.commit()
+
+    score_all_for_user(db, profile)
+    db.refresh(profile)
+    return _out(profile)
 
 
 @router.patch("/preferences", response_model=ProfileOut)
