@@ -17,6 +17,6 @@ from ananas.scrapers.smartrecruiters import SmartRecruitersScraper
 class SobiScraper(SmartRecruitersScraper):
     key = "sobi-swedish-orphan-biovitrum"
     label = "Sobi – Swedish Orphan Biovitrum"
-    company = "Sobi"
+    sr_company = "Sobi"
     country = "be"
     careers_url = "https://jobs.smartrecruiters.com/Sobi"

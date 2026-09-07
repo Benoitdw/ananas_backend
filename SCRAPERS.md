@@ -39,7 +39,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `ncardia` | Site propre (`/careers/<slug>`, filtre pays) | `ncardia.py` | 0 (1 poste a Leiden NL) |
 | `quantoom-biosciences` | Site propre WP | `quantoom.py` | 1 |
 | `univercells-technologies` | Workday groupe Donaldson (`location_tokens` Nivelles) | `univercells.py` | 2 |
-| `sobi-swedish-orphan-biovitrum` | SmartRecruiters (API, filtre pays) | `sobi.py` + `smartrecruiters.py` | 0 (0 poste belge) |
+| `sobi-swedish-orphan-biovitrum` | SmartRecruiters (API, filtre pays) | `sobi.py` + `smartrecruiters.py` | 1 |
 | `baxter` | Workday (`baxter.wd1`) | `baxter.py` | 0 (aucun poste belge publie) |
 | `qaelum` | Section carrieres Joomla (flux RSS) | `qaelum.py` | 1 |
 
@@ -53,7 +53,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
 | `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
-| `smartrecruiters.py::SmartRecruitersScraper` | SmartRecruiters (API publique) | `company`, `country` |
+| `smartrecruiters.py::SmartRecruitersScraper` | SmartRecruiters (API publique) | `sr_company`, `country` |
 | `ncardia.py::SlugCareersScraper` | Site "constructeur" a liens `/careers/<slug>` | `base_url`, `location_tokens` |
 
 ## A faire — priorise par volume / facilite

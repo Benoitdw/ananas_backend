@@ -7,6 +7,7 @@
     python -m ananas.worker.main --batch-status     # ou en sont les lots
     python -m ananas.worker.main --batch-collect    # recolte ce qui est pret
     python -m ananas.worker.main --batch-submit     # soumet les offres restantes
+    python -m ananas.worker.main --rescore          # recalcule tous les scores
     python -m ananas.worker.main --list-scrapers
 
 **Deux passes planifiees, pas une.** Quand le fournisseur de modele fait du
@@ -43,6 +44,7 @@ from ananas.ai.registry import get_provider, load_providers
 from ananas.ai.service import (
     collect_extraction_batches,
     extract_missing_features,
+    rescore_stale,
     submit_extraction_batch,
 )
 from ananas.config import settings
@@ -262,6 +264,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--batch-submit", action="store_true", help="soumet un lot pour les offres restantes"
     )
+    parser.add_argument(
+        "--rescore", action="store_true", help="recalcule les scores de toutes les offres"
+    )
     parser.add_argument("--company", help="limite a une entreprise (slug ou scraper_key)")
     parser.add_argument(
         "--list-scrapers", action="store_true", help="affiche les scrapers enregistres"
@@ -279,6 +284,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.batch_status:
         load_providers()
         show_batch_status()
+        return 0
+
+    if args.rescore:
+        # Aucun appel au modele: le scoring compare deux structures deja
+        # extraites (voir ananas.ai.matching). Relancable sans risque ni cout.
+        with session_scope() as db:
+            print(f"{rescore_stale(db)} paires (profil, offre) rescorees")
         return 0
 
     # Recolte avant soumission quand les deux sont demandes: liberer un lot

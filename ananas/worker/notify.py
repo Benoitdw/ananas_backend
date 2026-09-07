@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from ananas.distance import distance_from
 from ananas.models import (
     Company,
+    HiddenCompany,
     Job,
     JobMatch,
     NotificationChannel,
@@ -142,10 +143,18 @@ def pending_jobs(
     db: Session, user_id: int, since: datetime | None = None
 ) -> list[tuple[Job, Company, int | None]]:
     """Offres ouvertes, chez une entreprise enregistree par l'utilisateur,
-    jamais notifiees, triees par pertinence decroissante."""
+    jamais notifiees, triees par pertinence decroissante.
+
+    Les entreprises masquees sont exclues explicitement. Masquer retire deja
+    des favoris, donc la jointure sur ``saved_companies`` suffirait en
+    theorie; mais "ne plus jamais rien recevoir de cette boite" est la promesse
+    faite a l'utilisateur, et elle ne doit pas dependre du maintien d'un
+    invariant ailleurs dans le code.
+    """
     already_sent = select(SentJobNotification.job_id).where(
         SentJobNotification.user_id == user_id
     )
+    muted = select(HiddenCompany.company_id).where(HiddenCompany.user_id == user_id)
     profile = db.get(UserProfile, user_id)
 
     stmt = (
@@ -156,7 +165,11 @@ def pending_jobs(
             (SavedCompany.company_id == Company.id) & (SavedCompany.user_id == user_id),
         )
         .outerjoin(JobMatch, (JobMatch.job_id == Job.id) & (JobMatch.user_id == user_id))
-        .where(Job.closed_at.is_(None), Job.id.not_in(already_sent))
+        .where(
+            Job.closed_at.is_(None),
+            Job.id.not_in(already_sent),
+            Company.id.not_in(muted),
+        )
         .order_by(JobMatch.score.desc().nullslast(), Company.name, Job.first_seen_at.desc())
     )
     if since is not None:
@@ -208,7 +221,12 @@ def unscraped_saved_companies(db: Session, user_id: int) -> list[str]:
     stmt = (
         select(Company.name, Company.scraper_key)
         .join(SavedCompany, SavedCompany.company_id == Company.id)
-        .where(SavedCompany.user_id == user_id)
+        .where(
+            SavedCompany.user_id == user_id,
+            Company.id.not_in(
+                select(HiddenCompany.company_id).where(HiddenCompany.user_id == user_id)
+            ),
+        )
         .order_by(Company.name)
     )
     return [

@@ -24,6 +24,7 @@ from ananas.distance import distance_from
 from ananas.models import (
     SOURCE_USER,
     Company,
+    HiddenCompany,
     Job,
     JobFeatures,
     JobMatch,
@@ -52,6 +53,16 @@ def _saved_ids(db: Session, user: User | None) -> set[int]:
     return set(db.scalars(select(SavedCompany.company_id).where(SavedCompany.user_id == user.id)))
 
 
+def _hidden_ids(db: Session, user: User | None) -> set[int]:
+    """Entreprises que l'utilisateur ne veut plus voir. Vide pour un visiteur:
+    le masquage est un reglage personnel, pas une moderation du repertoire."""
+    if user is None:
+        return set()
+    return set(
+        db.scalars(select(HiddenCompany.company_id).where(HiddenCompany.user_id == user.id))
+    )
+
+
 def _open_job_counts(db: Session) -> dict[int, int]:
     rows = db.execute(
         select(Job.company_id, func.count(Job.id))
@@ -66,6 +77,7 @@ def _item(
     saved: set[int],
     counts: dict[int, int],
     home: tuple[float, float] | None = None,
+    hidden: set[int] | None = None,
 ) -> CompanyListItem:
     return CompanyListItem(
         id=company.id,
@@ -80,6 +92,7 @@ def _item(
         lon=company.lon,
         geo_precision=company.geo_precision,
         is_saved=company.id in saved,
+        is_hidden=company.id in (hidden or set()),
         has_scraper=bool(company.scraper_key and get_scraper(company.scraper_key)),
         open_jobs=counts.get(company.id, 0),
         distance_km=distance_from(home, company.lat, company.lon),
@@ -98,6 +111,9 @@ def list_companies(
         None, description="'biowin', 'curated', 'biopark' ou 'from_user'"
     ),
     saved_only: bool = Query(False),
+    include_hidden: bool = Query(
+        False, description="inclure les entreprises que tu as masquees"
+    ),
     max_km: float | None = Query(
         None, gt=0, description="au plus a cette distance du domicile, en km"
     ),
@@ -141,11 +157,18 @@ def list_companies(
             return []
         stmt = stmt.where(Company.id.in_(saved))
 
+    # Masquer, c'est retirer de la carte. On garde une porte de sortie
+    # (`include_hidden`) sinon l'utilisateur n'aurait plus aucun moyen de
+    # revenir sur sa decision.
+    hidden = _hidden_ids(db, user)
+    if hidden and not include_hidden:
+        stmt = stmt.where(Company.id.not_in(hidden))
+
     counts = _open_job_counts(db)
     home = get_home(db, user) if user else None
     point = home.point if home else None
 
-    items = [_item(c, saved, counts, point) for c in db.scalars(stmt)]
+    items = [_item(c, saved, counts, point, hidden) for c in db.scalars(stmt)]
 
     # Sans domicile localise, le rayon n'a aucun sens: on ne filtre rien plutot
     # que de renvoyer une liste vide inexplicable.
@@ -433,6 +456,7 @@ def _detail(db: Session, company: Company, user: User | None) -> CompanyDetail:
     detail = CompanyDetail.model_validate(company)
     detail.distance_km = distance_from(home.point if home else None, company.lat, company.lon)
     detail.is_saved = company.id in _saved_ids(db, user)
+    detail.is_hidden = company.id in _hidden_ids(db, user)
     detail.can_edit = may_edit(company, user)
     detail.jobs = jobs
     detail.submitted_by_email = company.submitted_by.email if company.submitted_by else None

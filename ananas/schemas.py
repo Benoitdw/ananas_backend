@@ -84,6 +84,9 @@ class CompanyListItem(ORM):
     lon: float | None
     geo_precision: str
     is_saved: bool = False
+    # Masquee par l'utilisateur: absente de la carte et du feed par defaut,
+    # renvoyee seulement quand on demande a la revoir (include_hidden).
+    is_hidden: bool = False
     has_scraper: bool = False
     open_jobs: int = 0
     # Distance a vol d'oiseau depuis le domicile, en km. None quand
@@ -122,6 +125,8 @@ class CompanyDetail(ORM):
     scraper_key: str | None
     last_scraped_at: datetime | None
     is_saved: bool = False
+    # La fiche reste consultable une fois masquee — c'est de la qu'on demasque.
+    is_hidden: bool = False
     distance_km: float | None = None
     # L'administration, ou l'utilisateur qui a propose cette entreprise
     can_edit: bool = False

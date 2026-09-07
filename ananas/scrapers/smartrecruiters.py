@@ -9,8 +9,15 @@ La liste accepte un filtre serveur ``country`` (code ISO 2 minuscules) — c'est
 un filtre exact, pas une recherche de proximite. La fiche detaillee porte la
 description en quatre sections HTML (``jobAd.sections``).
 
-Sous-classer et definir ``key`` et ``company`` (l'identifiant SmartRecruiters,
-visible dans l'URL ``jobs.smartrecruiters.com/<company>/...``).
+Sous-classer et definir ``key`` et ``sr_company`` (l'identifiant
+SmartRecruiters, visible dans l'URL ``jobs.smartrecruiters.com/<company>/...``).
+
+``sr_company`` et pas ``company``: ``BaseScraper.__init__`` pose deja un
+``self.company`` — l'entreprise du repertoire. Une constante de classe du meme
+nom se fait masquer des que le worker instancie le scraper avec une entreprise,
+et l'identifiant part alors dans l'URL sous la forme ``<Company object at
+0x...>``. Le bug est invisible en test (on instancie sans entreprise) et ne
+casse qu'en production.
 """
 
 from __future__ import annotations
@@ -29,10 +36,11 @@ _API = "https://api.smartrecruiters.com/v1/companies"
 
 
 class SmartRecruitersScraper(BaseScraper):
-    """Sous-classer et definir ``key`` et ``company``."""
+    """Sous-classer et definir ``key`` et ``sr_company``."""
 
-    # Identifiant SmartRecruiters de l'entreprise (casse respectee)
-    company: ClassVar[str] = ""
+    # Identifiant SmartRecruiters de l'entreprise (casse respectee). Prefixe
+    # pour ne pas masquer le `self.company` de BaseScraper — voir le module.
+    sr_company: ClassVar[str] = ""
     # Code pays ISO-3166 alpha-2, minuscules. Filtre serveur exact. "" = monde.
     country: ClassVar[str] = "be"
     # Jetons de ville retenus apres coup. Vide = on garde tout le pays.
@@ -60,7 +68,7 @@ class SmartRecruitersScraper(BaseScraper):
             params = {"limit": self.page_size, "offset": page * self.page_size}
             if self.country:
                 params["country"] = self.country
-            data = self._page(f"{_API}/{self.company}/postings", params)
+            data = self._page(f"{_API}/{self.sr_company}/postings", params)
             total = data.get("totalFound") or 0
             batch = data.get("content") or []
             if not batch:
@@ -98,7 +106,7 @@ class SmartRecruitersScraper(BaseScraper):
         return JobPosting(
             title=(stub.get("name") or "").strip(),
             url=detail.get("postingUrl")
-            or f"https://jobs.smartrecruiters.com/{self.company}/{stub['id']}",
+            or f"https://jobs.smartrecruiters.com/{self.sr_company}/{stub['id']}",
             location=_city(stub) or None,
             department=(stub.get("department") or {}).get("label") or None,
             description=description,
@@ -109,7 +117,7 @@ class SmartRecruitersScraper(BaseScraper):
 
     def _detail(self, posting_id: str) -> dict[str, Any]:
         try:
-            return self.get_json(f"{_API}/{self.company}/postings/{posting_id}")
+            return self.get_json(f"{_API}/{self.sr_company}/postings/{posting_id}")
         except Exception as exc:  # noqa: BLE001
             log.warning("%s: fiche %s illisible (%s)", self.key, posting_id, exc)
             return {}

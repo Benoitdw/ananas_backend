@@ -18,6 +18,7 @@ from ananas.db import get_db
 from ananas.distance import distance_from
 from ananas.models import (
     Company,
+    HiddenCompany,
     HiddenJob,
     Job,
     JobFeatures,
@@ -61,6 +62,7 @@ def my_jobs(
 
     saved_ids = select(SavedCompany.company_id).where(SavedCompany.user_id == user.id)
     hidden_ids = select(HiddenJob.job_id).where(HiddenJob.user_id == user.id)
+    muted_ids = select(HiddenCompany.company_id).where(HiddenCompany.user_id == user.id)
     stmt = (
         select(Job, Company, JobMatch, JobFeatures, Company.id.in_(saved_ids), Job.id.in_(hidden_ids))
         .join(Company, Company.id == Job.company_id)
@@ -69,6 +71,11 @@ def my_jobs(
     )
     if scope != "all":
         stmt = stmt.where(Company.id.in_(saved_ids))
+    # Une entreprise masquee sort du feed dans les deux scopes, et sans
+    # echappatoire: `include_hidden` ne parle que des offres ecartees une par
+    # une. Masquer la boite est une decision d'un autre ordre — on la respecte
+    # jusqu'au bout, et on la defait depuis la fiche de l'entreprise.
+    stmt = stmt.where(Company.id.not_in(muted_ids))
     if not include_closed:
         stmt = stmt.where(Job.closed_at.is_(None))
     if not include_hidden:

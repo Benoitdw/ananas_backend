@@ -53,6 +53,9 @@ class User(Base):
     saved: Mapped[list[SavedCompany]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    hidden_companies: Mapped[list[HiddenCompany]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class NotificationChannel(Base):
@@ -191,6 +194,37 @@ class SavedCompany(Base):
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="saved")
+    company: Mapped[Company] = relationship()
+
+
+class HiddenCompany(Base):
+    """Une entreprise que l'utilisateur ne veut plus voir du tout.
+
+    Plus fort que "pas en favori": une entreprise masquee disparait de la
+    carte, du feed d'offres (y compris en ``scope=all``, ou elle n'avait
+    pourtant pas besoin d'etre suivie pour apparaitre) et de la notification
+    quotidienne. C'est la difference avec ``HiddenJob``, qui n'agit que sur
+    l'affichage d'une offre precise: ici l'utilisateur declare ne jamais rien
+    vouloir recevoir de cette boite.
+
+    Exclusif de ``SavedCompany`` — masquer retire des favoris, enregistrer
+    demasque (voir ``ananas.api.saved``). Les deux tables ne peuvent pas se
+    contredire, il n'y a donc jamais a arbitrer entre elles a la lecture.
+    """
+
+    __tablename__ = "hidden_companies"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
+    )
+    hidden_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped[User] = relationship(back_populates="hidden_companies")
     company: Mapped[Company] = relationship()
 
 

@@ -126,6 +126,20 @@ sans contenu** : compteurs d'usage, jamais le CV, les aspirations ou le
 `chat_id` Telegram d'un compte. Ces donnees ne servent pas a moderer un
 repertoire, et les exposer ferait de la page admin une cible.
 
+### Un piege a eviter en ecrivant un scraper
+
+`BaseScraper.__init__` pose `self.company` (l'entreprise du repertoire) et
+`self.session`. Une constante de classe portant l'un de ces noms est donc
+ecrasee des que le worker instancie le scraper — mais pas quand on l'essaie a
+la main sans entreprise. Le scraper marche en developpement et part en vrille
+en production.
+
+C'est arrive au scraper Sobi: son `company = "Sobi"` finissait dans l'URL
+SmartRecruiters sous la forme `<ananas.models.Company object at 0x...>`. D'ou
+`sr_company` aujourd'hui. `tests/test_scraper_attributes.py` instancie chaque
+scraper enregistre *avec* une entreprise, comme le worker, et echoue si une
+constante ne survit pas.
+
 ### Les deux garanties du schema
 
 - `jobs` porte une contrainte unique `(company_id, fingerprint)`. C'est elle
@@ -134,6 +148,40 @@ repertoire, et les exposer ferait de la page admin une cible.
 - `sent_job_notifications` a pour cle primaire `(user_id, job_id)`. Une offre
   ne peut structurellement pas etre notifiee deux fois au meme utilisateur,
   meme si le worker est relance a la main ou plante en plein envoi.
+
+### Suivre, ecarter, masquer
+
+Trois reglages personnels, de portee croissante, tous en table d'association a
+cle primaire composite `(user_id, …)` — ce qui les rend idempotents et fait de
+l'appartenance un simple `IN` dans les filtres :
+
+| table | portee | effet |
+|---|---|---|
+| `saved_companies` | une entreprise | la met sous veille : c'est ce qui declenche la notification |
+| `hidden_jobs` | une offre | la retire du feed. N'affecte **pas** la notification |
+| `hidden_companies` | une entreprise | la retire de la carte, du feed (les deux `scope`) et de la notification |
+
+`hidden_companies` est le seul des trois a couper aussi la notification: c'est
+la promesse faite a l'utilisateur — plus rien de cette boite, nulle part.
+`ananas/worker/notify.py:pending_jobs` l'exclut donc explicitement, alors que
+la jointure sur `saved_companies` suffirait; la garantie ne doit pas dependre
+d'un invariant maintenu ailleurs.
+
+Suivre et masquer sont exclusifs, et ce sont les routes qui le garantissent
+(`ananas/api/saved.py`): masquer retire le favori, enregistrer demasque. Rien
+a arbitrer a la lecture, donc, mais rien non plus qui l'empeche en base — d'ou
+le filtre explicite ci-dessus.
+
+```
+PUT    /api/me/companies/{id}/hidden     masque
+DELETE /api/me/companies/{id}/hidden     reaffiche
+GET    /api/me/companies/hidden          ce qui est masque
+GET    /api/companies?include_hidden=1   la carte, masquees comprises
+```
+
+Cote interface, la liste complete est chargee avec `include_hidden=true` et le
+tri se fait dans le store: la case « afficher les masquees » de la carte ne
+declenche aucune requete.
 
 ## Ecrire un scraper
 
@@ -287,7 +335,7 @@ fonctionner, le worker retombe alors sur l'extraction en direct.
 | heure par defaut | passe | fait quoi |
 |---|---|---|
 | minuit (`SCRAPE_CRON_HOUR/MINUTE`) | `midnight_job` | scrape, puis soumet un lot pour tout ce qui manque de caracteristiques |
-| 7h (`NOTIFY_CRON_HOUR/MINUTE`) | `morning_job` | recolte le lot — tel quel s'il n'est pas fini — puis notifie |
+| 7h (`NOTIFY_CRON_HOUR/MINUTE`) | `morning_job` | recolte le lot — tel quel s'il n'est pas fini — rattrape les scores, puis notifie |
 
 Toute la nuit separe les deux, pour laisser sa chance au lot. `morning_job`
 **ne l'attend pas** : un lot pas termine a 7h laisse ses offres sans
@@ -302,6 +350,7 @@ python -m ananas.worker.main --batch-status    # ou en sont les lots, et combien
 python -m ananas.worker.main --batch-collect   # recolte les lots termines, maintenant
 python -m ananas.worker.main --batch-submit    # soumet un lot pour les offres restantes
 python -m ananas.worker.main --extract-only    # extraction en direct (1 appel par offre), hors cron
+python -m ananas.worker.main --rescore         # recalcule tous les scores (aucun appel modele)
 ```
 
 **Un lot qui n'aboutit jamais.** `ExtractionBatch.job_ids` excluant ses offres
@@ -323,6 +372,28 @@ les offres qu'il transporte. Deux protections :
 - `BATCH_MAX_AGE_HOURS` (48h, la duree de vie annoncee d'un lot Gemini) :
   au-dela, le lot est declare perdu et ses offres repartent dans le suivant.
   C'est le filet quand la forme de la reponse change encore.
+
+**Caracteriser une offre doit la scorer.** Sans ligne dans `job_matches`, une
+offre n'a pas de score a l'ecran, echappe au tri par pertinence et disparait de
+"seulement les pertinentes" : elle existe sans exister. Deux pieges se sont
+deja refermes la-dessus, et les deux sont verrouilles par
+`tests/test_scoring_after_extraction.py` :
+
+- `SessionLocal` ouvre ses sessions en **`expire_on_commit=False`**
+  (`ananas/db.py`). `_save_job_features` lisait `job.features` — lazy load a
+  None, mis en cache —, creait la ligne avec la seule cle etrangere, puis
+  committait sans rien expirer. `score_job_for_all`, appele juste apres sur le
+  meme objet, relisait ce None et abandonnait. **Tous** les chemins
+  automatiques passaient par la. D'ou le `job.features = features` avant le
+  commit : la relation, pas seulement la cle etrangere.
+  *Un test ecrit avec le `expire_on_commit=True` par defaut de SQLAlchemy ne
+  voit rien de ce bug* — d'ou la fixture qui recopie la configuration de
+  production, et le commentaire qui dit pourquoi.
+- `rescore_stale` existait mais n'etait appelee de nulle part. Elle l'est
+  desormais en fin de `morning_job` : le scoring ne coute aucun appel modele
+  (`ananas/ai/matching.py` est du Python pur), le repasser une fois par jour
+  est gratuit, et c'est ce qui fait qu'un trou de scoring se repare tout seul
+  au lieu d'attendre que quelqu'un reenregistre son CV.
 
 **Declencheurs de recalcul du score**, inchanges par le mode lot :
 
