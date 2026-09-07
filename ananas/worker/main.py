@@ -110,7 +110,7 @@ def midnight_job() -> None:
 
 
 def morning_job() -> None:
-    """Recolte le lot de la nuit (s'il y en a un), puis notifie.
+    """Recolte le lot de la nuit (s'il y en a un), rattrape les scores, notifie.
 
     Tolerant par construction: un lot pas encore termine laisse ses offres
     sans caracteristiques — elles restent visibles, simplement non triees,
@@ -122,6 +122,14 @@ def morning_job() -> None:
             collected = collect_extraction_batches(db)
             if collected:
                 log.info("%d offres caracterisees par lot avant la notification", collected)
+
+        # Filet, juste avant la notification: une offre caracterisee mais non
+        # scoree est invisible au tri par pertinence et peut etre ecartee par
+        # "seulement les pertinentes". Le scoring est du Python pur et gratuit,
+        # le repasser une fois par jour ne coute rien a cette echelle — et
+        # c'est ce qui manquait pour qu'un bug de scoring se repare tout seul
+        # au lieu d'attendre que quelqu'un reenregistre son CV.
+        rescore_stale(db)
 
         # Uniquement un run *termine*: un scrape interrompu (worker tue en
         # plein milieu, par exemple) laisse un ScrapeRun sans finished_at, et

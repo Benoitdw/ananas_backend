@@ -82,7 +82,15 @@ def _save_job_features(db: Session, job: Job, data: dict) -> JobFeatures:
     """Enregistre une reponse deja nettoyee (voir ``finalize_job_data``).
     Ne score pas: c'est a l'appelant de le faire, une fois pour chaque offre
     reussie, comme pour l'echec — voir ``extract_missing_features`` et
-    ``collect_extraction_batches``."""
+    ``collect_extraction_batches``.
+
+    ``job.features`` est rattache explicitement, et pas seulement par la cle
+    etrangere. ``SessionLocal`` ouvre ses sessions en ``expire_on_commit=False``
+    (voir ``ananas.db``): un ``job.features`` deja lu a None le reste apres le
+    commit, et l'appelant enchaine justement sur ``score_job_for_all``, qui
+    abandonne quand il le trouve a None. L'offre gagnait alors ses
+    caracteristiques en base sans jamais recevoir de score.
+    """
     features = job.features or JobFeatures(job_id=job.id)
     features.role_family = data["role_family"][:120]
     features.seniority = data["seniority"]
@@ -97,6 +105,8 @@ def _save_job_features(db: Session, job: Job, data: dict) -> JobFeatures:
     features.summary = data["summary"]
     features.model = settings.ai_model
     features.extracted_at = datetime.now(UTC)
+    # Rattacher a l'offre, pas seulement par la cle etrangere: voir plus haut.
+    job.features = features
     db.add(features)
     db.commit()
     return features
