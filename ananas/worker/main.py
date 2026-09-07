@@ -4,6 +4,9 @@
     python -m ananas.worker.main --now                # scrape + notify tout de suite
     python -m ananas.worker.main --scrape-only --company qbd-group
     python -m ananas.worker.main --notify-only
+    python -m ananas.worker.main --batch-status     # ou en sont les lots
+    python -m ananas.worker.main --batch-collect    # recolte ce qui est pret
+    python -m ananas.worker.main --batch-submit     # soumet les offres restantes
     python -m ananas.worker.main --list-scrapers
 
 **Deux passes planifiees, pas une.** Quand le fournisseur de modele fait du
@@ -34,7 +37,7 @@ from datetime import UTC, datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ananas.ai.registry import get_provider, load_providers
 from ananas.ai.service import (
@@ -44,7 +47,7 @@ from ananas.ai.service import (
 )
 from ananas.config import settings
 from ananas.db import session_scope
-from ananas.models import ScrapeRun
+from ananas.models import ExtractionBatch, Job, JobFeatures, ScrapeRun
 from ananas.notifiers.registry import load_notifiers
 from ananas.scrapers.registry import load_scrapers
 from ananas.worker.notify import send_daily_digests
@@ -139,6 +142,41 @@ def morning_job() -> None:
         _log_report(report)
 
 
+def show_batch_status() -> None:
+    """Ou en sont les lots d'extraction, et combien d'offres attendent encore.
+
+    Sert surtout a repondre a "les lots n'avancent pas": un lot 'pending' tres
+    ancien est un lot que plus rien ne fera aboutir, et ses offres restent
+    exclues de toute nouvelle soumission jusqu'a ce qu'il soit declare perdu
+    (voir ``ananas.ai.service.BATCH_MAX_AGE_HOURS``).
+    """
+    with session_scope() as db:
+        rows = db.scalars(
+            select(ExtractionBatch).order_by(ExtractionBatch.submitted_at.desc()).limit(20)
+        ).all()
+        if not rows:
+            print("Aucun lot d'extraction enregistre.")
+        else:
+            now = datetime.now(UTC)
+            print(f"{'id':>4}  {'etat':<10} {'age':>7}  {'offres':>6}  identifiant")
+            for batch in rows:
+                submitted = batch.submitted_at
+                if submitted.tzinfo is None:
+                    submitted = submitted.replace(tzinfo=UTC)
+                age = (now - submitted).total_seconds() / 3600
+                print(
+                    f"{batch.id:>4}  {batch.status:<10} {age:>6.1f}h  "
+                    f"{len(batch.job_ids):>6}  {batch.provider_batch_id}"
+                )
+
+        waiting = db.scalar(
+            select(func.count(Job.id))
+            .outerjoin(JobFeatures, JobFeatures.job_id == Job.id)
+            .where(Job.closed_at.is_(None), JobFeatures.job_id.is_(None))
+        )
+        print(f"\nOffres ouvertes encore sans caracteristiques: {waiting}")
+
+
 def _log_report(report) -> None:
     log.info(
         "Notifications: %d envois, %d utilisateurs, %d offres%s",
@@ -207,6 +245,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--extract-only", action="store_true", help="caracterise les offres en attente"
     )
+    parser.add_argument(
+        "--batch-status", action="store_true", help="etat des lots d'extraction"
+    )
+    parser.add_argument(
+        "--batch-collect", action="store_true", help="recolte les lots termines"
+    )
+    parser.add_argument(
+        "--batch-submit", action="store_true", help="soumet un lot pour les offres restantes"
+    )
     parser.add_argument("--company", help="limite a une entreprise (slug ou scraper_key)")
     parser.add_argument(
         "--list-scrapers", action="store_true", help="affiche les scrapers enregistres"
@@ -219,6 +266,27 @@ def main(argv: list[str] | None = None) -> int:
             print("Aucun scraper enregistre.")
         for key, cls in sorted(scrapers.items()):
             print(f"  {key:24} {cls.label or cls.__name__:24} {cls.careers_url}")
+        return 0
+
+    if args.batch_status:
+        load_providers()
+        show_batch_status()
+        return 0
+
+    # Recolte avant soumission quand les deux sont demandes: liberer un lot
+    # termine evite de resoumettre ses offres dans le suivant.
+    if args.batch_collect or args.batch_submit:
+        load_providers()
+        with session_scope() as db:
+            if args.batch_collect:
+                print(f"{collect_extraction_batches(db)} offres caracterisees par lot")
+            if args.batch_submit:
+                batch = submit_extraction_batch(db)
+                print(
+                    f"lot soumis: {batch.provider_batch_id} ({len(batch.job_ids)} offres)"
+                    if batch
+                    else "rien a soumettre (aucune offre en attente, ou lot deja en cours)"
+                )
         return 0
 
     if args.extract_only:

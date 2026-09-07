@@ -292,8 +292,25 @@ d'elles-memes dans le lot de la nuit suivante, puisqu'elles restent sans
 "en vol" pour ne pas les soumettre deux fois pendant qu'on attend.
 
 ```bash
-python -m ananas.worker.main --extract-only   # extraction en direct, hors cron
+python -m ananas.worker.main --batch-status    # ou en sont les lots, et combien d'offres attendent
+python -m ananas.worker.main --batch-collect   # recolte les lots termines, maintenant
+python -m ananas.worker.main --batch-submit    # soumet un lot pour les offres restantes
+python -m ananas.worker.main --extract-only    # extraction en direct (1 appel par offre), hors cron
 ```
+
+**Un lot qui n'aboutit jamais.** `ExtractionBatch.job_ids` excluant ses offres
+de toute nouvelle soumission, un lot bloque en `pending` gele definitivement
+les offres qu'il transporte. Deux protections :
+
+- `poll_batch` accepte les deux formes de reponse de l'API. `GET
+  /v1beta/batches/{id}` renvoie un `longrunning.Operation` qui range l'etat
+  dans `metadata.state` avec le vocabulaire `BATCH_STATE_*`, alors que le SDK
+  expose un objet plat (`state`, `dest.inlinedResponses`) en `JOB_STATE_*`.
+  Ne lire que la seconde forme faisait valoir "pas encore fini" a un etat
+  simplement introuvable — *le* bug qui laissait les lots tourner sans fin.
+- `BATCH_MAX_AGE_HOURS` (48h, la duree de vie annoncee d'un lot Gemini) :
+  au-dela, le lot est declare perdu et ses offres repartent dans le suivant.
+  C'est le filet quand la forme de la reponse change encore.
 
 **Declencheurs de recalcul du score**, inchanges par le mode lot :
 

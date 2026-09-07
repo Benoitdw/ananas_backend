@@ -100,71 +100,105 @@ def test_submit_batch_reponse_sans_name(monkeypatch, llm):
 
 
 # ----------------------------------------------------------------- poll_batch
+#
+# GET /v1beta/batches/{id} n'a pas une seule forme. Le SDK expose un objet plat
+# (`state`, `dest.inlinedResponses`); REST renvoie un `longrunning.Operation`
+# qui range l'etat dans `metadata.state` et les reponses sous
+# `response.output.inlinedResponses.inlinedResponses`. Les deux vocabulaires
+# d'etat coexistent (`JOB_STATE_*` / `BATCH_STATE_*`).
+#
+# N'en lire qu'une, c'est ce qui laissait un lot "en cours" pour toujours:
+# `data["state"]` absent valait "pas encore fini", et `submit_extraction_batch`
+# excluant les offres d'un lot en cours, elles n'etaient plus jamais
+# caracterisees. Les deux formes sont donc testees cote a cote.
 
 
-@pytest.mark.parametrize("state", ["JOB_STATE_PENDING", "JOB_STATE_RUNNING", ""])
-def test_poll_batch_pas_termine(monkeypatch, llm, state):
+def sdk_shape(state: str, inlined: list | None = None) -> dict:
+    """Objet plat, tel que l'expose le SDK Python."""
+    payload: dict = {"state": f"JOB_STATE_{state}"}
+    if inlined is not None:
+        payload["dest"] = {"inlinedResponses": inlined}
+    return payload
+
+
+def rest_shape(state: str, inlined: list | None = None) -> dict:
+    """`longrunning.Operation`, tel que le renvoie l'API REST."""
+    payload: dict = {
+        "name": "batches/abc123",
+        "metadata": {"state": f"BATCH_STATE_{state}"},
+        "done": state not in ("PENDING", "RUNNING"),
+    }
+    if inlined is not None:
+        payload["response"] = {"output": {"inlinedResponses": {"inlinedResponses": inlined}}}
+    return payload
+
+
+SHAPES = [sdk_shape, rest_shape]
+
+
+def responded(text: str) -> dict:
+    return {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}}
+
+
+def poll(monkeypatch, llm, payload):
     monkeypatch.setattr(
-        "ananas.ai.gemini.requests.get",
-        lambda *a, **k: FakeResponse(200, {"state": state}),
+        "ananas.ai.gemini.requests.get", lambda *a, **k: FakeResponse(200, payload)
     )
-    poll = llm.poll_batch("batches/abc123")
-    assert poll.state == "pending"
-    assert poll.results is None
+    return llm.poll_batch("batches/abc123")
 
 
-@pytest.mark.parametrize("state", ["JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED"])
-def test_poll_batch_lot_perdu(monkeypatch, llm, state):
-    monkeypatch.setattr(
-        "ananas.ai.gemini.requests.get",
-        lambda *a, **k: FakeResponse(200, {"state": state}),
-    )
-    poll = llm.poll_batch("batches/abc123")
-    assert poll.state == "failed"
-    assert poll.results is None
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("state", ["PENDING", "RUNNING"])
+def test_poll_batch_pas_termine(monkeypatch, llm, shape, state):
+    assert poll(monkeypatch, llm, shape(state)).state == "pending"
 
 
-def test_poll_batch_succes_aligne_par_position_et_tolere_un_echec_isole(monkeypatch, llm):
+def test_poll_batch_etat_illisible_reste_en_attente(monkeypatch, llm):
+    """Ni etat ni `done`: on ne conclut pas. Le garde-fou contre un lot qui ne
+    finit jamais est ailleurs (``service.BATCH_MAX_AGE_HOURS``), pas dans une
+    interpretation optimiste d'une reponse qu'on ne comprend pas."""
+    assert poll(monkeypatch, llm, {"name": "batches/abc123"}).state == "pending"
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("state", ["FAILED", "CANCELLED", "EXPIRED"])
+def test_poll_batch_lot_perdu(monkeypatch, llm, shape, state):
+    result = poll(monkeypatch, llm, shape(state))
+    assert result.state == "failed"
+    assert result.results is None
+
+
+def test_poll_batch_operation_terminee_en_erreur_sans_etat(monkeypatch, llm):
+    payload = {"name": "batches/abc123", "done": True, "error": {"code": 13}}
+    assert poll(monkeypatch, llm, payload).state == "failed"
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_poll_batch_succes_aligne_par_position_et_tolere_un_echec_isole(
+    monkeypatch, llm, shape
+):
     """Deux requetes soumises, une reussit, une echoue au sein du meme lot:
     le lot est global "succeeded" mais results[1] doit rester None plutot que
     de faire echouer toute la recolte."""
-    payload = {
-        "state": "JOB_STATE_SUCCEEDED",
-        "dest": {
-            "inlinedResponses": [
-                {
-                    "response": {
-                        "candidates": [
-                            {"content": {"parts": [{"text": '{"role_family": "data"}'}]}}
-                        ]
-                    }
-                },
-                {"error": {"code": 500, "message": "internal"}},
-            ]
-        },
-    }
-    monkeypatch.setattr(
-        "ananas.ai.gemini.requests.get", lambda *a, **k: FakeResponse(200, payload)
+    payload = shape(
+        "SUCCEEDED",
+        [responded('{"role_family": "data"}'), {"error": {"code": 500, "message": "internal"}}],
     )
-    poll = llm.poll_batch("batches/abc123")
-    assert poll.state == "succeeded"
-    assert poll.results == [{"role_family": "data"}, None]
+    result = poll(monkeypatch, llm, payload)
+    assert result.state == "succeeded"
+    assert result.results == [{"role_family": "data"}, None]
 
 
-def test_poll_batch_json_illisible_devient_none(monkeypatch, llm):
-    payload = {
-        "state": "JOB_STATE_SUCCEEDED",
-        "dest": {
-            "inlinedResponses": [
-                {"response": {"candidates": [{"content": {"parts": [{"text": "pas du json"}]}}]}}
-            ]
-        },
-    }
-    monkeypatch.setattr(
-        "ananas.ai.gemini.requests.get", lambda *a, **k: FakeResponse(200, payload)
-    )
-    poll = llm.poll_batch("batches/abc123")
-    assert poll.results == [None]
+@pytest.mark.parametrize("shape", SHAPES)
+def test_poll_batch_json_illisible_devient_none(monkeypatch, llm, shape):
+    assert poll(monkeypatch, llm, shape("SUCCEEDED", [responded("pas du json")])).results == [None]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_poll_batch_succes_sans_reponse_exploitable_est_un_echec(monkeypatch, llm, shape):
+    """Recolter un lot vide marquerait ses offres comme traitees alors qu'elles
+    n'ont rien recu: mieux vaut le declarer perdu et le resoumettre."""
+    assert poll(monkeypatch, llm, shape("SUCCEEDED", [])).state == "failed"
 
 
 def test_supports_batch():

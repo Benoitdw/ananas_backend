@@ -35,7 +35,7 @@ Les deux ecrivent les memes lignes ``JobFeatures``, avec le meme nettoyage
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -48,6 +48,17 @@ from ananas.config import settings
 from ananas.models import ExtractionBatch, Job, JobFeatures, JobMatch, UserProfile
 
 log = logging.getLogger(__name__)
+
+# Au-dela, un lot encore 'pending' est declare perdu et ses offres repartent
+# dans le prochain lot. Cale sur la duree de vie annoncee d'un lot Gemini
+# (48h): passe ce delai, il ne finira plus.
+#
+# C'est le garde-fou qui manquait. Un lot dont l'etat n'est jamais lisible —
+# API qui change de forme, identifiant perdu, projet supprime — reste
+# 'pending' pour toujours, et ``submit_extraction_batch`` exclut justement les
+# offres d'un lot en cours: sans peremption, ces offres ne repartent jamais
+# nulle part et ne sont plus jamais caracterisees.
+BATCH_MAX_AGE_HOURS = 48
 
 
 def ai_ready() -> bool:
@@ -200,8 +211,20 @@ def collect_extraction_batches(db: Session) -> int:
 
     pending = list(db.scalars(select(ExtractionBatch).where(ExtractionBatch.status == "pending")))
     total_done = 0
+    deadline = datetime.now(UTC) - timedelta(hours=BATCH_MAX_AGE_HOURS)
 
     for batch in pending:
+        if _expired(batch, deadline):
+            log.warning(
+                "lot %s toujours en attente apres %dh: declare perdu, ses %d offres "
+                "repartiront dans le prochain lot",
+                batch.provider_batch_id, BATCH_MAX_AGE_HOURS, len(batch.job_ids),
+            )
+            batch.status = "failed"
+            batch.collected_at = datetime.now(UTC)
+            db.commit()
+            continue
+
         try:
             poll = provider.poll_batch(batch.provider_batch_id)
         except LLMError as exc:
@@ -308,6 +331,20 @@ def score_job_for_all(db: Session, job: Job) -> int:
         _upsert(db, profile.user_id, job.id, profile.version, score_job(profile.data, features))
     db.commit()
     return len(profiles)
+
+
+def _expired(batch: ExtractionBatch, deadline: datetime) -> bool:
+    """Un lot soumis avant ``deadline`` n'a plus de raison d'aboutir.
+
+    ``submitted_at`` peut revenir naif d'une base sans fuseau (SQLite en test):
+    on le suppose alors UTC, comme partout ailleurs.
+    """
+    submitted = batch.submitted_at
+    if submitted is None:
+        return False
+    if submitted.tzinfo is None:
+        submitted = submitted.replace(tzinfo=UTC)
+    return submitted < deadline
 
 
 def rescore_stale(db: Session) -> int:
