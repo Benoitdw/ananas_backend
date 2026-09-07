@@ -17,7 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from ananas.api.home import get_home
 from ananas.db import get_db
+from ananas.distance import distance_from
 from ananas.models import (
     SOURCE_USER,
     Company,
@@ -58,7 +60,12 @@ def _open_job_counts(db: Session) -> dict[int, int]:
     return dict(rows.all())
 
 
-def _item(company: Company, saved: set[int], counts: dict[int, int]) -> CompanyListItem:
+def _item(
+    company: Company,
+    saved: set[int],
+    counts: dict[int, int],
+    home: tuple[float, float] | None = None,
+) -> CompanyListItem:
     return CompanyListItem(
         id=company.id,
         slug=company.slug,
@@ -74,6 +81,7 @@ def _item(company: Company, saved: set[int], counts: dict[int, int]) -> CompanyL
         is_saved=company.id in saved,
         has_scraper=bool(company.scraper_key and get_scraper(company.scraper_key)),
         open_jobs=counts.get(company.id, 0),
+        distance_km=distance_from(home, company.lat, company.lon),
     )
 
 
@@ -87,8 +95,18 @@ def list_companies(
     core_business: str | None = Query(None, deprecated=True, description="alias de `tag`"),
     source: str | None = Query(None, description="'biowin', 'curated' ou 'from_user'"),
     saved_only: bool = Query(False),
+    max_km: float | None = Query(
+        None, gt=0, description="au plus a cette distance du domicile, en km"
+    ),
+    sort: str = Query("name", description="'name' ou 'distance'"),
 ) -> list[CompanyListItem]:
-    """Toute la carte en une requete: la charge utile est volontairement legere."""
+    """Toute la carte en une requete: la charge utile est volontairement legere.
+
+    Chaque ligne porte sa distance au domicile quand celui-ci est renseigne
+    (``PUT /api/me/home``). C'est le serveur qui la calcule, une fois, pour que
+    l'interface puisse filtrer et trier au curseur sans rien recalculer ni
+    redemander.
+    """
     stmt = select(Company).order_by(Company.name)
 
     if q:
@@ -121,7 +139,21 @@ def list_companies(
         stmt = stmt.where(Company.id.in_(saved))
 
     counts = _open_job_counts(db)
-    return [_item(c, saved, counts) for c in db.scalars(stmt)]
+    home = get_home(db, user) if user else None
+    point = home.point if home else None
+
+    items = [_item(c, saved, counts, point) for c in db.scalars(stmt)]
+
+    # Sans domicile localise, le rayon n'a aucun sens: on ne filtre rien plutot
+    # que de renvoyer une liste vide inexplicable.
+    if max_km is not None and point is not None:
+        items = [i for i in items if i.distance_km is not None and i.distance_km <= max_km]
+    if sort == "distance":
+        # Les entreprises sans distance (non geocodees) finissent la liste
+        # plutot que d'en disparaitre: elles restent proposables a la main.
+        items.sort(key=lambda i: (i.distance_km is None, i.distance_km or 0.0, i.name))
+
+    return items
 
 
 @router.get("/facets", response_model=CompanyFacets)
@@ -394,7 +426,9 @@ def _detail(db: Session, company: Company, user: User | None) -> CompanyDetail:
         out.summary = features.summary if features else None
         jobs.append(out)
 
+    home = get_home(db, user) if user else None
     detail = CompanyDetail.model_validate(company)
+    detail.distance_km = distance_from(home.point if home else None, company.lat, company.lon)
     detail.is_saved = company.id in _saved_ids(db, user)
     detail.can_edit = may_edit(company, user)
     detail.jobs = jobs

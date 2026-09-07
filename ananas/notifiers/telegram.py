@@ -75,6 +75,13 @@ class TelegramNotifier(BaseNotifier):
                 lines.append(f'  • <a href="{html.escape(job.url, quote=True)}">{title}</a>{suffix}')
             lines.append("")
 
+        if digest.beyond_radius and digest.radius_km:
+            plural = "s" if digest.beyond_radius > 1 else ""
+            lines.append(
+                f"📍 {digest.beyond_radius} autre{plural} offre{plural} au-dela de "
+                f"{digest.radius_km} km, non listee{plural} ici."
+            )
+
         if digest.unscraped_companies:
             # Signale plutot que de laisser croire que "aucune offre" veut
             # dire "rien de nouveau chez elles": ces entreprises ne sont

@@ -60,6 +60,10 @@ class JobWithCompany(JobOut):
     # L'utilisateur a explicitement ecarte cette offre. Absente du feed par
     # defaut (voir include_hidden), presente quand on demande a les revoir.
     is_hidden: bool = False
+    # Distance du siege de l'entreprise au domicile de l'utilisateur. C'est
+    # une approximation assumee: `location` est un texte libre non geocode,
+    # et une offre bruxelloise d'une societe basee a Gand sortira a Gand.
+    distance_km: float | None = None
 
 
 # ---------------------------------------------------------------- entreprises
@@ -82,6 +86,10 @@ class CompanyListItem(ORM):
     is_saved: bool = False
     has_scraper: bool = False
     open_jobs: int = 0
+    # Distance a vol d'oiseau depuis le domicile, en km. None quand
+    # l'utilisateur n'a pas de domicile localise ou l'entreprise pas de
+    # coordonnees — un tiret cote interface, jamais un zero invente.
+    distance_km: float | None = None
 
 
 class CompanyDetail(ORM):
@@ -114,6 +122,7 @@ class CompanyDetail(ORM):
     scraper_key: str | None
     last_scraped_at: datetime | None
     is_saved: bool = False
+    distance_km: float | None = None
     # L'administration, ou l'utilisateur qui a propose cette entreprise
     can_edit: bool = False
     jobs: list[JobOut] = []
@@ -280,6 +289,53 @@ class CompanyUpdateIn(BaseModel):
     @classmethod
     def _strip(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
+
+
+# ------------------------------------------------- domicile et perimetre
+
+
+MAX_RADIUS_KM = 500
+
+
+class HomeIn(BaseModel):
+    """Domicile de reference. Aucun champ n'est obligatoire: une ville seule
+    suffit a placer un cercle utile, et exiger une rue empecherait quelqu'un
+    de simplement dire "je cherche autour de Namur"."""
+
+    street: str = ""
+    postal_code: str = ""
+    city: str = ""
+    country: str = "Belgium"
+    radius_km: int = Field(default=25, ge=1, le=MAX_RADIUS_KM)
+    # Appliquer ce rayon a la notification quotidienne, et pas seulement aux
+    # filtres de l'interface.
+    notify_within_radius: bool = False
+
+    @field_validator("street", "postal_code", "city", "country")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return value.strip()
+
+
+class HomeOut(ORM):
+    """L'adresse telle qu'enregistree, plus ce que le geocodage en a fait.
+
+    ``lat``/``lon`` alimentent le cercle trace sur la carte et le calcul des
+    distances; ``geo_precision`` permet a l'interface de dire honnetement que
+    le point n'est qu'approximatif.
+    """
+
+    street: str = ""
+    postal_code: str = ""
+    city: str = ""
+    country: str = "Belgium"
+    address: str = ""
+    lat: float | None = None
+    lon: float | None = None
+    geo_precision: str = ""
+    radius_km: int = 25
+    notify_within_radius: bool = False
+    updated_at: datetime | None = None
 
 
 # ------------------------------------------------------------ administration

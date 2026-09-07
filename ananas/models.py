@@ -367,6 +367,65 @@ class UserProfile(Base):
         return bool(self.data) and self.status == "ok"
 
 
+class UserHome(Base):
+    """Domicile de reference d'un utilisateur, et rayon de recherche associe.
+
+    Table separee de ``user_profiles`` a dessein: le profil est jetable —
+    ``DELETE /api/me/profile`` l'efface pour reanalyser un CV — alors qu'une
+    adresse de domicile est saisie a la main une fois pour toutes. La ranger
+    la-bas ferait perdre l'adresse a chaque remise a zero du CV.
+
+    Les coordonnees sont geocodees a l'enregistrement (Nominatim, comme les
+    entreprises) et stockees: la distance a chaque entreprise se calcule
+    ensuite sans appel reseau.
+    """
+
+    __tablename__ = "user_homes"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    street: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    postal_code: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    city: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    country: Mapped[str] = mapped_column(String(80), default="Belgium", server_default="Belgium")
+    # Adresse recomposee, telle qu'affichee a l'utilisateur
+    address: Mapped[str] = mapped_column(String(500), default="", server_default="")
+
+    # NULL tant que le geocodage n'a rien trouve: l'interface le dit plutot que
+    # de placer un cercle au hasard.
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Meme vocabulaire que Company.geo_precision ('adresse' | 'ville' | ...)
+    geo_precision: Mapped[str] = mapped_column(String(32), default="", server_default="")
+
+    # Rayon du perimetre de recherche, en kilometres. Sert de valeur par defaut
+    # aux filtres et au cercle trace sur la carte.
+    radius_km: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+
+    # Appliquer ce rayon a la notification quotidienne. False par defaut, a
+    # l'inverse de ``notify_only_relevant``: le seuil de pertinence se regle
+    # juste apres avoir vu son profil analyse, alors qu'un rayon sert d'abord a
+    # regarder la carte. En faire un filtre d'envoi sans le demander ferait
+    # disparaitre des offres sans que personne l'ait decide.
+    notify_within_radius: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship()
+
+    @property
+    def point(self) -> tuple[float, float] | None:
+        """(lat, lon) quand le domicile est localise — la forme attendue par
+        ``ananas.distance.distance_from``."""
+        return None if self.lat is None or self.lon is None else (self.lat, self.lon)
+
+
 class JobMatch(Base):
     """Score d'une offre pour un utilisateur.
 

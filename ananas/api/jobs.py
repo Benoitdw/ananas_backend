@@ -13,7 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ananas.api.home import get_home
 from ananas.db import get_db
+from ananas.distance import distance_from
 from ananas.models import (
     Company,
     HiddenJob,
@@ -29,6 +31,12 @@ from ananas.security import get_current_user
 
 router = APIRouter(prefix="/api/me/jobs", tags=["offres"])
 
+# Plafond de securite quand le tri ou le filtre porte sur la distance: on doit
+# alors mesurer plus d'offres que la page n'en affichera. Tres au-dessus du
+# volume reel (quelques milliers d'offres ouvertes pour tout le repertoire),
+# assez bas pour qu'une base qui derape ne fasse pas tomber l'API.
+SCAN_LIMIT = 20_000
+
 
 @router.get("", response_model=list[JobWithCompany])
 def my_jobs(
@@ -37,7 +45,10 @@ def my_jobs(
     include_closed: bool = Query(False, description="inclure les offres disparues du site"),
     include_hidden: bool = Query(False, description="inclure les offres que tu as ecartees"),
     relevant_only: bool = Query(False, description="seulement au-dessus de ton seuil"),
-    sort: str = Query("date", description="'date' ou 'score'"),
+    max_km: float | None = Query(
+        None, gt=0, description="entreprise a moins de N km de ton domicile"
+    ),
+    sort: str = Query("date", description="'date', 'score' ou 'distance'"),
     scope: str = Query(
         "saved", description="'saved' (par defaut, ta veille) ou 'all' (tout le repertoire scrape)"
     ),
@@ -45,6 +56,8 @@ def my_jobs(
 ) -> list[JobWithCompany]:
     profile = db.get(UserProfile, user.id)
     threshold = profile.match_threshold if profile else 0
+    home = get_home(db, user)
+    point = home.point if home else None
 
     saved_ids = select(SavedCompany.company_id).where(SavedCompany.user_id == user.id)
     hidden_ids = select(HiddenJob.job_id).where(HiddenJob.user_id == user.id)
@@ -53,7 +66,6 @@ def my_jobs(
         .join(Company, Company.id == Job.company_id)
         .outerjoin(JobMatch, (JobMatch.job_id == Job.id) & (JobMatch.user_id == user.id))
         .outerjoin(JobFeatures, JobFeatures.job_id == Job.id)
-        .limit(limit)
     )
     if scope != "all":
         stmt = stmt.where(Company.id.in_(saved_ids))
@@ -70,7 +82,14 @@ def my_jobs(
         JobMatch.score.desc().nullslast() if sort == "score" else Job.first_seen_at.desc()
     )
 
-    return [
+    # La distance n'est pas une colonne SQL: rayon et tri par distance se font
+    # en Python, donc apres coup. Couper a `limit` en base sortirait alors les
+    # bonnes offres du lot avant meme de les avoir mesurees — on remonte plus
+    # large dans ce cas, et on coupe a la fin.
+    by_distance = max_km is not None or sort == "distance"
+    stmt = stmt.limit(SCAN_LIMIT if by_distance else limit)
+
+    rows = [
         JobWithCompany(
             id=job.id,
             title=job.title,
@@ -88,9 +107,17 @@ def my_jobs(
             company_slug=company.slug,
             company_saved=bool(saved),
             is_hidden=bool(hidden),
+            distance_km=distance_from(point, company.lat, company.lon),
         )
         for job, company, match, features, saved, hidden in db.execute(stmt)
     ]
+
+    if max_km is not None and point is not None:
+        rows = [r for r in rows if r.distance_km is not None and r.distance_km <= max_km]
+    if sort == "distance":
+        rows.sort(key=lambda r: (r.distance_km is None, r.distance_km or 0.0))
+
+    return rows[:limit]
 
 
 @router.put("/{job_id}/hidden", response_model=MessageOut)

@@ -45,6 +45,12 @@ class Digest:
     # notification pour inviter a aller regarder a la main — voir
     # ``ananas.worker.notify.send_daily_digests``. Vide la plupart du temps.
     unscraped_companies: list[str] = field(default_factory=list)
+    # Offres retirees par le perimetre de recherche, et le rayon applique. Le
+    # pied de page les compte plutot que de les taire: un filtre invisible se
+    # confond avec une journee sans offre, et c'est precisement ce qu'on ne
+    # veut pas faire croire. 0 quand le reglage est eteint.
+    beyond_radius: int = 0
+    radius_km: int | None = None
 
     @property
     def job_count(self) -> int:

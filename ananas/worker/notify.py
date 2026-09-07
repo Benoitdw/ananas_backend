@@ -15,6 +15,12 @@ correspondance et celles sous son seuil sont ecartees s'il l'a demande. Une
 offre encore non caracterisee n'est jamais ecartee: on prefere un message de
 trop a une offre manquee a cause d'une extraction en retard.
 
+Meme regle pour le perimetre: qui a coche "seulement autour de chez moi" ne
+recoit que les offres d'entreprises situees dans son rayon, mais une entreprise
+sans coordonnees passe quand meme — position inconnue ne veut pas dire loin. Ce
+qui a ete ecarte par le rayon est annonce en pied de message: un filtre
+silencieux ferait croire a un jour sans offre.
+
 L'idempotence repose sur ``sent_job_notifications``: la ligne n'est ecrite
 qu'apres un envoi reussi, et sa cle primaire (user_id, job_id) empeche
 structurellement le doublon. Relancer le worker dix fois dans la journee
@@ -30,6 +36,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ananas.distance import distance_from
 from ananas.models import (
     Company,
     Job,
@@ -38,6 +45,7 @@ from ananas.models import (
     SavedCompany,
     SentJobNotification,
     User,
+    UserHome,
     UserProfile,
 )
 from ananas.notifiers.base import Digest, JobLine, NotifierError
@@ -82,10 +90,20 @@ def send_daily_digests(db: Session, since: datetime | None = None) -> NotifyRepo
 
     for user_id, user_channels in by_user.items():
         jobs = pending_jobs(db, user_id, since=since)
+        home = db.get(UserHome, user_id)
+        jobs, beyond = within_radius(jobs, home)
         if not jobs:
+            # Rien a envoyer: la regle "rien de neuf, aucun message" prime,
+            # meme quand le rayon est seul responsable du vide. La page Offres
+            # continue, elle, de tout montrer.
             continue
 
-        digest = build_digest(jobs, unscraped=unscraped_saved_companies(db, user_id))
+        digest = build_digest(
+            jobs,
+            unscraped=unscraped_saved_companies(db, user_id),
+            beyond_radius=beyond,
+            radius_km=home.radius_km if home else None,
+        )
         delivered = False
 
         for channel in user_channels:
@@ -154,6 +172,31 @@ def pending_jobs(
     return rows
 
 
+def within_radius(
+    rows: list[tuple[Job, Company, int | None]], home: UserHome | None
+) -> tuple[list[tuple[Job, Company, int | None]], int]:
+    """Restreint le digest au perimetre, et dit combien d'offres sont sorties.
+
+    Ne fait rien tant que l'utilisateur n'a pas coche le reglage, ou tant que
+    son domicile n'a pas pu etre localise: filtrer sur un point inconnu
+    reviendrait a tout supprimer.
+
+    Une entreprise sans coordonnees est **gardee**, comme une offre non encore
+    caracterisee l'est face au seuil de pertinence: on ne sait pas ou elle est,
+    ce n'est pas une raison de la faire disparaitre.
+    """
+    if home is None or not home.notify_within_radius or home.point is None:
+        return rows, 0
+
+    kept = [
+        row
+        for row in rows
+        if (d := distance_from(home.point, row[1].lat, row[1].lon)) is None
+        or d <= home.radius_km
+    ]
+    return kept, len(rows) - len(kept)
+
+
 def unscraped_saved_companies(db: Session, user_id: int) -> list[str]:
     """Entreprises suivies sans scraper qui fonctionne — ``scraper_key`` vide,
     ou renseigne mais introuvable dans le registre (cle perimee, module en
@@ -174,7 +217,10 @@ def unscraped_saved_companies(db: Session, user_id: int) -> list[str]:
 
 
 def build_digest(
-    jobs: list[tuple[Job, Company, int | None]], unscraped: list[str] | None = None
+    jobs: list[tuple[Job, Company, int | None]],
+    unscraped: list[str] | None = None,
+    beyond_radius: int = 0,
+    radius_km: int | None = None,
 ) -> Digest:
     """Regroupe par entreprise, en conservant l'ordre de pertinence.
 
@@ -185,4 +231,9 @@ def build_digest(
         companies.setdefault(company.name, []).append(
             JobLine(title=job.title, url=job.url, location=job.location, score=score)
         )
-    return Digest(companies=companies, unscraped_companies=unscraped or [])
+    return Digest(
+        companies=companies,
+        unscraped_companies=unscraped or [],
+        beyond_radius=beyond_radius,
+        radius_km=radius_km,
+    )
