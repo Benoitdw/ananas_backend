@@ -23,7 +23,7 @@ En autonome (base Postgres deja disponible) :
 pip install -e .
 export DATABASE_URL="postgresql+psycopg://ananas:ananas@localhost:5432/ananas"
 alembic upgrade head
-python -m ananas.seed            # importe les 130 entreprises des CSV de data/
+python -m ananas.seed            # importe les 267 entreprises des CSV de data/
 uvicorn ananas.api.main:app --reload
 ```
 
@@ -42,12 +42,18 @@ ananas/
 └── worker/          planification, scrape, notification
 ```
 
-### Trois provenances, un seul vocabulaire de tags
+### Quatre provenances, un seul vocabulaire de tags
 
 `companies.source` vaut `biowin` (les 81 partenaires du POC, `data/partners.csv`),
-`curated` (les 49 biotech/pharma belges de `data/biotech-belgique.csv`) ou
-`from_user` (proposees via `POST /api/companies`). Une entreprise proposee est
-une entreprise a part entiere: visible, filtrable et enregistrable par tous.
+`curated` (les 49 biotech/pharma belges de `data/biotech-belgique.csv`),
+`biopark` (les 137 membres et partenaires du BioPark de Charleroi,
+`data/biopark.csv`, suivi dans `BIOPARK.md`) ou `from_user` (proposees via
+`POST /api/companies`). Une entreprise proposee est une entreprise a part
+entiere: visible, filtrable et enregistrable par tous.
+
+Une provenance est filtrable telle quelle (`GET /api/companies?source=biopark`).
+Cote front, l'ajouter aux tables de `web/src/lib/sources.ts` suffit a la faire
+apparaitre dans le filtre de la carte et dans celui de l'administration.
 
 Ajouter un lot d'entreprises = deposer un CSV dans `data/`, le geocoder une
 fois, l'ajouter a `DEFAULT_CSVS` (seed.py):
@@ -302,12 +308,18 @@ python -m ananas.worker.main --extract-only    # extraction en direct (1 appel p
 de toute nouvelle soumission, un lot bloque en `pending` gele definitivement
 les offres qu'il transporte. Deux protections :
 
-- `poll_batch` accepte les deux formes de reponse de l'API. `GET
+- `poll_batch` ne parie plus sur une forme de reponse. `GET
   /v1beta/batches/{id}` renvoie un `longrunning.Operation` qui range l'etat
-  dans `metadata.state` avec le vocabulaire `BATCH_STATE_*`, alors que le SDK
-  expose un objet plat (`state`, `dest.inlinedResponses`) en `JOB_STATE_*`.
-  Ne lire que la seconde forme faisait valoir "pas encore fini" a un etat
-  simplement introuvable — *le* bug qui laissait les lots tourner sans fin.
+  dans `metadata.state`, vocabulaire `BATCH_STATE_*`, alors que le SDK expose
+  un objet plat (`state`, `dest.inlinedResponses`) en `JOB_STATE_*`. Ne lire
+  que la seconde forme faisait valoir "pas encore fini" a un etat simplement
+  introuvable — *le* bug qui laissait les lots tourner sans fin.
+
+  Releve reel du 2026-09-07 : les resultats sont sous
+  `metadata.output.inlinedResponses.inlinedResponses`, un **troisieme** chemin
+  qui n'est celui d'aucune des deux formes documentees. D'ou une recherche de
+  la cle plutot qu'un acces direct, et les trois formes figees cote a cote
+  dans `tests/test_gemini_batch.py`.
 - `BATCH_MAX_AGE_HOURS` (48h, la duree de vie annoncee d'un lot Gemini) :
   au-dela, le lot est declare perdu et ses offres repartent dans le suivant.
   C'est le filet quand la forme de la reponse change encore.

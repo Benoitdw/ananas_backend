@@ -86,9 +86,11 @@ class NotificationChannel(Base):
 
 # Provenance d'une entreprise. 'biowin' = importee du repertoire du POC,
 # 'curated' = ajoutee au repertoire Ananas par un CSV de data/,
+# 'biopark' = importee de l'annuaire du BioPark de Charleroi,
 # 'from_user' = proposee par un utilisateur via le formulaire.
 SOURCE_BIOWIN = "biowin"
 SOURCE_CURATED = "curated"
+SOURCE_BIOPARK = "biopark"
 SOURCE_USER = "from_user"
 
 

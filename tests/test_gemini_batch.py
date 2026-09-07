@@ -122,7 +122,8 @@ def sdk_shape(state: str, inlined: list | None = None) -> dict:
 
 
 def rest_shape(state: str, inlined: list | None = None) -> dict:
-    """`longrunning.Operation`, tel que le renvoie l'API REST."""
+    """`longrunning.Operation` tel que le documente Google: resultats sous
+    ``response.output.inlinedResponses.inlinedResponses``."""
     payload: dict = {
         "name": "batches/abc123",
         "metadata": {"state": f"BATCH_STATE_{state}"},
@@ -133,11 +134,41 @@ def rest_shape(state: str, inlined: list | None = None) -> dict:
     return payload
 
 
-SHAPES = [sdk_shape, rest_shape]
+def live_shape(state: str, inlined: list | None = None) -> dict:
+    """Ce que l'API renvoie *reellement* (releve le 2026-09-07 sur
+    ``gemini-3.7-flash``): l'etat dans ``metadata.state``, et les resultats
+    sous ``metadata.output.inlinedResponses.inlinedResponses`` — un troisieme
+    chemin, qui n'est celui d'aucune des deux formes documentees.
+
+    C'est la forme qui compte en production, et celle qu'aucun chemin en dur
+    n'aurait trouvee. Elle est figee ici pour que le jour ou quelqu'un
+    "simplifie" la recherche en un acces direct, le test tombe.
+    """
+    payload: dict = {
+        "name": "batches/abc123",
+        "metadata": {
+            "@type": "type.googleapis.com/google.ai.generativelanguage.v1main.GenerateContentBatch",
+            "model": "models/gemini-3.7-flash",
+            "state": f"BATCH_STATE_{state}",
+        },
+    }
+    if inlined is not None:
+        payload["done"] = True
+        payload["response"] = {"@type": "…GenerateContentBatch"}
+        payload["metadata"]["output"] = {"inlinedResponses": {"inlinedResponses": inlined}}
+    return payload
 
 
-def responded(text: str) -> dict:
-    return {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}}
+SHAPES = [sdk_shape, rest_shape, live_shape]
+
+
+def responded(text: str, thought: str | None = None) -> dict:
+    """Une reponse inline. ``thought`` ajoute une partie de raisonnement, que
+    les modeles a raisonnement peuvent intercaler."""
+    parts = [{"text": text, "thoughtSignature": "EuwGCukGARFNMg9r"}]
+    if thought is not None:
+        parts.insert(0, {"text": thought, "thought": True})
+    return {"response": {"candidates": [{"content": {"parts": parts, "role": "model"}}]}}
 
 
 def poll(monkeypatch, llm, payload):
@@ -199,6 +230,15 @@ def test_poll_batch_succes_sans_reponse_exploitable_est_un_echec(monkeypatch, ll
     """Recolter un lot vide marquerait ses offres comme traitees alors qu'elles
     n'ont rien recu: mieux vaut le declarer perdu et le resoumettre."""
     assert poll(monkeypatch, llm, shape("SUCCEEDED", [])).state == "failed"
+
+
+def test_poll_batch_ignore_les_parties_de_raisonnement(monkeypatch, llm):
+    """Concatener le raisonnement avec la reponse produirait un JSON invalide,
+    donc une offre silencieusement non caracterisee."""
+    payload = live_shape(
+        "SUCCEEDED", [responded('{"role_family": "data"}', thought="Reflechissons…")]
+    )
+    assert poll(monkeypatch, llm, payload).results == [{"role_family": "data"}]
 
 
 def test_supports_batch():

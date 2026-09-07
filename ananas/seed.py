@@ -2,10 +2,12 @@
 
     python -m ananas.seed [--csv chemin]... [--update] [--link-only]
 
-Deux fichiers sont charges par defaut, dans cet ordre:
+Trois fichiers sont charges par defaut, dans cet ordre:
 
   - ``partners.csv``          les 81 partenaires du POC BioWin (source 'biowin')
   - ``biotech-belgique.csv``  49 biotech/pharma belges (source 'curated')
+  - ``biopark.csv``           137 membres et partenaires du BioPark de Charleroi
+                              (source 'biopark'), dedoublonnes des deux premiers
 
 Le geocodage est deja paye a l'ecriture du CSV (Nominatim, ~1 requete/seconde,
 voir ``python -m ananas.geocode_csv``): les entreprises arrivent avec leur
@@ -41,7 +43,11 @@ from ananas.models import SOURCE_BIOWIN, Company
 from ananas.scrapers.registry import load_scrapers
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DEFAULT_CSVS = (DATA_DIR / "partners.csv", DATA_DIR / "biotech-belgique.csv")
+DEFAULT_CSVS = (
+    DATA_DIR / "partners.csv",
+    DATA_DIR / "biotech-belgique.csv",
+    DATA_DIR / "biopark.csv",
+)
 
 # Champs recopies tels quels du CSV. careers_url et scraper_key n'y sont pas:
 # ils sont propres a Ananas et se remplissent a la main.

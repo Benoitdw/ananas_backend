@@ -3,6 +3,9 @@
 Liste de travail pour couvrir le repertoire `curated` (49 biotech/pharma
 belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 
+Les 137 membres et partenaires du BioPark de Charleroi (`data/biopark.csv`)
+ont leur propre liste de suivi: `BIOPARK.md`.
+
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
 

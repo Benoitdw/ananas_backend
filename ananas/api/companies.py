@@ -1,11 +1,12 @@
 """Repertoire d'entreprises: ce qui peuple la carte, la fiche de detail, et le
 formulaire de proposition.
 
-Trois provenances cohabitent dans la meme table: les 81 partenaires importes du
-repertoire BioWin (`source='biowin'`), les 49 biotech/pharma belges du
-repertoire Ananas (`source='curated'`) et celles proposees par les utilisateurs
-(`source='from_user'`). Une entreprise proposee est une entreprise a part
-entiere — visible, filtrable et enregistrable par tout le monde.
+Quatre provenances cohabitent dans la meme table: les 81 partenaires importes
+du repertoire BioWin (`source='biowin'`), les 49 biotech/pharma belges du
+repertoire Ananas (`source='curated'`), les 137 membres et partenaires du
+BioPark de Charleroi (`source='biopark'`) et celles proposees par les
+utilisateurs (`source='from_user'`). Une entreprise proposee est une entreprise
+a part entiere — visible, filtrable et enregistrable par tout le monde.
 """
 
 from __future__ import annotations
@@ -93,7 +94,9 @@ def list_companies(
     type: str | None = Query(None),
     tag: str | None = Query(None, description="un tag, BioWin ou utilisateur"),
     core_business: str | None = Query(None, deprecated=True, description="alias de `tag`"),
-    source: str | None = Query(None, description="'biowin', 'curated' ou 'from_user'"),
+    source: str | None = Query(
+        None, description="'biowin', 'curated', 'biopark' ou 'from_user'"
+    ),
     saved_only: bool = Query(False),
     max_km: float | None = Query(
         None, gt=0, description="au plus a cette distance du domicile, en km"

@@ -207,9 +207,7 @@ class GeminiLLM(BaseLLM):
                 results.append(None)
                 continue
             try:
-                parts = resp["candidates"][0]["content"]["parts"]
-                text = "".join(part.get("text", "") for part in parts)
-                results.append(json.loads(text))
+                results.append(json.loads(_answer_text(resp)))
             except (KeyError, IndexError, TypeError, ValueError):
                 results.append(None)
 
@@ -240,12 +238,23 @@ class GeminiLLM(BaseLLM):
             raise LLMError(f"Gemini a repondu {response.status_code}: {response.text[:300]}")
 
         try:
-            parts = response.json()["candidates"][0]["content"]["parts"]
-        except (KeyError, IndexError, ValueError) as exc:
+            return _answer_text(response.json())
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
             # Reponse tronquee, filtre de securite, quota: on remonte la cause
             raise LLMError(f"Reponse Gemini inexploitable: {response.text[:300]}") from exc
 
-        return "".join(part.get("text", "") for part in parts)
+
+def _answer_text(payload: dict[str, Any]) -> str:
+    """Le texte de la reponse, parties de raisonnement exclues.
+
+    Les modeles a raisonnement peuvent renvoyer des parties marquees
+    ``thought``: les concatener avec la reponse produirait un JSON invalide,
+    et donc une offre silencieusement non caracterisee. Elles ne sont
+    normalement rendues que sur demande (``includeThoughts``), mais l'oubli
+    couterait un lot entier — la garde est gratuite.
+    """
+    parts = payload["candidates"][0]["content"]["parts"]
+    return "".join(part.get("text", "") for part in parts if not part.get("thought"))
 
 
 # --------------------------------------------------- lecture d'une reponse de lot
