@@ -55,6 +55,61 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
 | `smartrecruiters.py::SmartRecruitersScraper` | SmartRecruiters (API publique) | `sr_company`, `country` |
 | `ncardia.py::SlugCareersScraper` | Site "constructeur" a liens `/careers/<slug>` | `base_url`, `location_tokens` |
+| `talentsquare.py::TalentSquareScraper` | TalentSquare (API JSON `careers_page/public`) | `ts_slug` |
+| `jobs2web.py::Jobs2WebScraper` | SuccessFactors "ancien theme" (flux RSS par categorie) | `base_url`, `category_id` |
+| `talentsoft.py::TalentsoftScraper` | Cegid Talentsoft (flux RSS `offerRss.ashx`) | `base_url`, `town` |
+| `hr_technologies.py::HRTechnologiesScraper` | HR-Technologies (API JSON `X-Client-UUID`) | `client_uuid`, `front_url` |
+
+## Entreprises suivies par un utilisateur (from_user, 2026-09-07)
+
+18 entreprises "suivies" via le formulaire de l'app le 2026-09-07, hors
+perimetre `curated`/`biopark` (voir doublons plus bas). `key` du scraper =
+`slug` genere par `slugify(nom)` a la creation de la fiche — verifie a la main
+pour chacune ci-dessous, a re-verifier si le nom exact en base differe.
+
+### Fait (6)
+
+| slug | ATS | module | offres au 2026-09-08 |
+|---|---|---|---|
+| `cap4hr` | TalentSquare | `cap4hr.py` | 4 |
+| `ucl-personnels-administratifs` | SuccessFactors jobs2web (RSS) | `ucl.py` | 10 |
+| `ucl-personnels-scientifiques` | SuccessFactors jobs2web (RSS) | `ucl.py` | 4 |
+| `haute-ecole-ephec` | Odoo (module Recrutement) | `ephec.py` | 2 |
+| `equaly` | Site propre, page statique (pas d'ATS) | `equaly.py` | 1 |
+| `cliniques-universitaires-saint-luc` | Cegid Talentsoft (RSS) | `saintluc.py` | 20 |
+| `sciensano` | HR-Technologies (API JSON) | `sciensano.py` | 7 |
+
+### Doublons — deja couverts, rien a faire
+
+Ces 6 noms de la liste du 2026-09-07 resolvent au meme `slug` qu'une fiche
+`curated` deja scrapee (voir table "Fait" plus haut) :
+
+| nom suivi | slug | deja couvert par |
+|---|---|---|
+| GSK – Rixensart | `gsk-rixensart` | `gsk.py` |
+| GSK – Wavre | `gsk-wavre` | `gsk.py` |
+| AbbVie Belgium | `abbvie-belgium` | `abbvie.py` |
+| Cellistic | `cellistic` | `cellistic.py` |
+| Novadip Biosciences | `novadip-biosciences` | `novadip.py` |
+| SGS Lab Simon | `sgs-lab-simon` | — deja documente en "A faire" (Workday `sgs.wd3`, 401 depuis le conteneur) |
+| Celyad Oncology | `celyad-oncology` | — deja documente en "A faire" (candidature par email, basse prio) |
+
+### Bloquees — pas de scraper trouvable (2026-09-08)
+
+- **`services-publiques`** — pas de site declare par l'utilisateur ; aucun
+  point de depart possible (l'entite couvre potentiellement des dizaines
+  d'organismes publics belges, pas un seul employeur).
+- **`institut-de-duve`** (`deduveinstitute.be/fr/jobs`) — site Next.js
+  entierement rendu cote client (CMS Sanity, projet `b98ocrnx`), aucun HTML
+  serveur ni endpoint public trouve en 2026-09-08. Rattache administrativement
+  a l'UCLouvain — les offres scientifiques passent peut-etre par
+  `ucl-personnels-scientifiques` (a verifier).
+- **`santero-therapeutics`** (`santero.be`) — aucune page carrieres sur le
+  site ; candidature par email uniquement (`websantero@santero.be`).
+- **`haute-ecole-leonard-de-vinci`** (`vinci.be/fr/emploi`) — cette page ne
+  liste que le portail JobTeaser **etudiant** (`hevinci.jobteaser.com`, offres
+  de stage/job d'externes), pas un recrutement du personnel HE Vinci.
+  Aucune page RH "recrutement" trouvee sur `vinci.be`.
 
 ## A faire — priorise par volume / facilite
 

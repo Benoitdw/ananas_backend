@@ -129,7 +129,7 @@ Colonnes : **site** = site officiel connu, **carr.** = page carrieres reperee,
 | `elkedonia-belgium` | Elkedonia Belgium | Company | [site](https://elkedonia.com/) | [ ] | [ ] |
 | `enodia-therapeutics` | Enodia Therapeutics | Company | [site](https://www.enodiatx.com/) | [ ] | [ ] |
 | `epics-therapeuthics` | Epics Therapeuthics | Company | [site](https://www.epicstherapeutics.com/) | [ ] | [ ] |
-| `equaly` | Equaly | Company | [site](https://equaly.be/index.html) | [ ] | [ ] |
+| `equaly` | Equaly | Company | [site](https://equaly.be/index.html) | [x] | [x] |
 | `genflow-bioscience` | Genflow Bioscience | Company | [site](http://www.genflowbio.com/) | [ ] | [ ] |
 | `hemastatx` | Hemastatx | Company | [site](https://www.hemastatx.com/) | [ ] | [ ] |
 | `hephaistos` | HEPHAISTOS | Company | [site](https://hephaistos-pharma.fr/) | [ ] | [ ] |
