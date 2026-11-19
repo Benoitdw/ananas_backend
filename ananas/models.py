@@ -100,6 +100,10 @@ SOURCE_BIOPARK = "biopark"
 SOURCE_LISTE_AN = "liste-an"
 SOURCE_USER = "from_user"
 
+# Provenances qui sont des listes: filtrer sur elles montre aussi les fiches
+# d'autres repertoires qui portent leur tag (voir ananas.seed, « Listes »).
+LIST_TAGS = {SOURCE_LISTE_AN: "Liste An"}
+
 
 class Company(Base):
     """Une entreprise du repertoire, affichee sur la carte.

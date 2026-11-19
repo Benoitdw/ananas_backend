@@ -24,6 +24,7 @@ from ananas.api.home import get_home
 from ananas.db import get_db
 from ananas.distance import distance_from
 from ananas.models import (
+    LIST_TAGS,
     SOURCE_USER,
     Company,
     HiddenCompany,
@@ -145,7 +146,14 @@ def list_companies(
     if type:
         stmt = stmt.where(Company.type == type)
     if source:
-        stmt = stmt.where(Company.source == source)
+        # Une liste (Liste An) couvre aussi les fiches d'autres repertoires
+        # qui portent seulement son tag: le filtre doit les montrer toutes.
+        if list_tag := LIST_TAGS.get(source):
+            stmt = stmt.where(
+                or_(Company.source == source, Company.tags.ilike(f"%{list_tag}%"))
+            )
+        else:
+            stmt = stmt.where(Company.source == source)
 
     # Un seul filtre pour les deux colonnes: les tags utilisateur et les
     # secteurs BioWin partagent le meme vocabulaire cote interface.

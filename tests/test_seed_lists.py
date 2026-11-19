@@ -104,3 +104,28 @@ def test_la_relance_est_idempotente(db, tmp_path):
     db.expire_all()
     tags = db.scalar(select(Company.tags).where(Company.slug == "sciensano"))
     assert tags == "Sante, Liste An"
+
+
+def test_le_filtre_de_provenance_d_une_liste_montre_aussi_les_fiches_taguees(db):
+    """Filtrer « Liste An » doit montrer toute la liste, pas seulement les
+    fiches qu'elle a creees: c'est ce qu'on attend d'une liste."""
+    from ananas.api.companies import list_companies
+
+    db.add_all(
+        [
+            Company(slug="zoetis-belgium", name="Zoetis", source="liste-an", tags="Liste An"),
+            Company(slug="gsk-wavre", name="GSK", source="curated", tags="Liste An"),
+            Company(slug="ucb", name="UCB", source="curated", tags=""),
+        ]
+    )
+    db.commit()
+
+    def names(source):
+        rows = list_companies(
+            db=db, user=None, q=None, type=None, tag=None, core_business=None,
+            source=source, saved_only=False, include_hidden=False, max_km=None, sort="name",
+        )
+        return [r.name for r in rows]
+
+    assert names("liste-an") == ["GSK", "Zoetis"]
+    assert names("curated") == ["GSK", "UCB"]

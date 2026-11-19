@@ -8,13 +8,15 @@ La liste d'employeurs scientifiques de « Listes Emplois Scientifiques.xlsx »
 la liste etait deja connue (BioWin, BioPark, repertoire Ananas, proposee par
 un utilisateur): ces fiches ne sont ni dupliquees ni modifiees, elles recoivent
 seulement le tag **« Liste An »**. Les autres sont creees avec la source
-`liste-an`. Sur la carte:
+`liste-an` (25 sur une base vierge, 19 sur une base qui a deja les six fiches
+proposees par un utilisateur le 2026-09-07: Saint-Luc, UCLouvain x2, EPHEC,
+Institut de Duve, HE Vinci).
 
-- filtre **tag « Liste An »** → les 62 fiches de la liste;
-- filtre **provenance « Liste An »** → seulement celles qu'elle a ajoutees:
-  25 sur une base vierge, 19 sur une base qui a deja les six fiches proposees
-  par un utilisateur le 2026-09-07 (Saint-Luc, UCLouvain x2, EPHEC, Institut
-  de Duve, HE Vinci — voir SCRAPERS.md).
+Sur la carte, la page d'administration et l'API, le filtre **provenance
+« Liste An »** montre les 62 fiches: celles creees par la liste *et* celles
+qui portent son tag (`LIST_TAGS` dans `models.py`, `matchesSource` dans
+`web/src/lib/sources.ts`). Le filtre par tag « Liste An » donne le meme
+resultat.
 
 GSK compte deux lignes (Wavre et Rixensart, deux fiches existantes).
 
