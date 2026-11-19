@@ -1,11 +1,13 @@
 """Repertoire d'entreprises: ce qui peuple la carte, la fiche de detail, et le
 formulaire de proposition.
 
-Quatre provenances cohabitent dans la meme table: les 81 partenaires importes
+Cinq provenances cohabitent dans la meme table: les 81 partenaires importes
 du repertoire BioWin (`source='biowin'`), les 49 biotech/pharma belges du
 repertoire Ananas (`source='curated'`), les 137 membres et partenaires du
-BioPark de Charleroi (`source='biopark'`) et celles proposees par les
-utilisateurs (`source='from_user'`). Une entreprise proposee est une entreprise
+BioPark de Charleroi (`source='biopark'`), les employeurs ajoutes par la
+« Liste An » (`source='liste-an'`) et celles proposees par les utilisateurs
+(`source='from_user'`). La Liste An complete se filtre par son tag, puisque
+la moitie de ses fiches viennent d'un autre repertoire. Une entreprise proposee est une entreprise
 a part entiere — visible, filtrable et enregistrable par tout le monde.
 """
 
@@ -108,7 +110,7 @@ def list_companies(
     tag: str | None = Query(None, description="un tag, BioWin ou utilisateur"),
     core_business: str | None = Query(None, deprecated=True, description="alias de `tag`"),
     source: str | None = Query(
-        None, description="'biowin', 'curated', 'biopark' ou 'from_user'"
+        None, description="'biowin', 'curated', 'biopark', 'liste-an' ou 'from_user'"
     ),
     saved_only: bool = Query(False),
     include_hidden: bool = Query(

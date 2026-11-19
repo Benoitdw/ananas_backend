@@ -13,6 +13,8 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
+from ananas.cv_import import CvImportError, extract_text
+
 USER_AGENT = "Mozilla/5.0 (compatible; ananas-bot/1.0; +https://github.com/ananas)"
 
 session = requests.Session()
@@ -85,3 +87,27 @@ def absolutize(base: str, href: str) -> str:
     from urllib.parse import urljoin
 
     return urljoin(base, href)
+
+
+def pdf_text(
+    url: str,
+    *,
+    sess: requests.Session | None = None,
+    timeout: int = 30,
+) -> str:
+    """Texte d'une annonce publiee en PDF ('' si illisible).
+
+    Plusieurs petites structures (LIMS, Institut de Duve) ne
+    publient leurs offres qu'en PDF. Sans ce texte, l'offre n'a pas de
+    description et le matching n'a rien a se mettre sous la dent. Un PDF
+    illisible ne doit pas faire perdre l'offre: on rend '' et le scraper garde
+    le titre.
+    """
+    try:
+        r = (sess or session).get(url, timeout=timeout)
+        r.raise_for_status()
+        text, _pages = extract_text(r.content)
+    except (requests.RequestException, CvImportError):
+        return ""
+    return text[:8000]
+

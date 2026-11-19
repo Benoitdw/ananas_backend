@@ -50,7 +50,14 @@ class Jobs2WebScraper(BaseScraper):
         response.raise_for_status()
         self.sleep()
         root = ET.fromstring(response.content)
-        return [self._parse_item(item) for item in root.findall("./channel/item")]
+        # Une categorie vide publie un item factice « Aucune offre d'emploi
+        # actuellement disponible » qui pointe vers la racine du site: sans
+        # identifiant d'offre, ce n'est pas une offre.
+        return [
+            self._parse_item(item)
+            for item in root.findall("./channel/item")
+            if _JOB_ID.search(item.findtext("link") or "")
+        ]
 
     def _parse_item(self, item: ET.Element) -> JobPosting:
         url = (item.findtext("link") or "").strip()

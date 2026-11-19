@@ -4,7 +4,9 @@ Liste de travail pour couvrir le repertoire `curated` (49 biotech/pharma
 belges, `data/biotech-belgique.csv`). Voir `README.md` §*Ecrire un scraper*.
 
 Les 137 membres et partenaires du BioPark de Charleroi (`data/biopark.csv`)
-ont leur propre liste de suivi: `BIOPARK.md`.
+ont leur propre liste de suivi: `BIOPARK.md`. La « Liste An »
+(`data/liste-an.csv`, 62 employeurs, 29 nouveaux scrapers) aussi:
+`LISTE_AN.md`.
 
 Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 `python -m ananas.seed --link-only`.
@@ -59,6 +61,17 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `jobs2web.py::Jobs2WebScraper` | SuccessFactors "ancien theme" (flux RSS par categorie) | `base_url`, `category_id` |
 | `talentsoft.py::TalentsoftScraper` | Cegid Talentsoft (flux RSS `offerRss.ashx`) | `base_url`, `town` |
 | `hr_technologies.py::HRTechnologiesScraper` | HR-Technologies (API JSON `X-Client-UUID`) | `client_uuid`, `front_url` |
+| `talentfinder.py::TalentFinderScraper` | TalentFinder (liste `.aspx`, JSON-LD ou HTML) | `careers_url` |
+| `skeeled.py::SkeeledScraper` | Skeeled (liens `app.skeeled.com/offer/c/<id>` sur la page du client) | `careers_url`, `ignore_ids` |
+| `bamboohr.py::BambooHRScraper` | BambooHR (`/careers/list`) | `bamboo_slug` |
+| `jazzhr.py::JazzHRScraper` | JazzHR (`applytojob.com`) | `jazz_slug`, `location_tokens` |
+| `beehire.py::BeehireScraper` | Beehire (`getPublicCampaigns`) | `beehire_slug` |
+| `bioparkjobs.py::BioparkJobsScraper` | jobboard biopark.jobs | `bp_employer` |
+| `travaillerpour.py::TravaillerPourScraper` | travaillerpour.be (fonction publique federale) | `careers_url` (recherche filtree) |
+| `page_watch.py::PageWatchScraper` | aucune offre en ligne: veille de la phrase « aucune offre » | `empty_markers`, `region` |
+
+`http.pdf_text(url)` donne le texte d'une annonce publiee en PDF (LIMS, Institut
+de Duve...): sans lui, l'offre n'a pas de description a matcher.
 
 ## Entreprises suivies par un utilisateur (from_user, 2026-09-07)
 
@@ -91,25 +104,22 @@ Ces 6 noms de la liste du 2026-09-07 resolvent au meme `slug` qu'une fiche
 | AbbVie Belgium | `abbvie-belgium` | `abbvie.py` |
 | Cellistic | `cellistic` | `cellistic.py` |
 | Novadip Biosciences | `novadip-biosciences` | `novadip.py` |
-| SGS Lab Simon | `sgs-lab-simon` | — deja documente en "A faire" (Workday `sgs.wd3`, 401 depuis le conteneur) |
+| SGS Lab Simon | `sgs-lab-simon` | `sgs.py` (Liste An, SmartRecruiters) |
 | Celyad Oncology | `celyad-oncology` | — deja documente en "A faire" (candidature par email, basse prio) |
 
 ### Bloquees — pas de scraper trouvable (2026-09-08)
 
 - **`services-publiques`** — pas de site declare par l'utilisateur ; aucun
   point de depart possible (l'entite couvre potentiellement des dizaines
-  d'organismes publics belges, pas un seul employeur).
-- **`institut-de-duve`** (`deduveinstitute.be/fr/jobs`) — site Next.js
-  entierement rendu cote client (CMS Sanity, projet `b98ocrnx`), aucun HTML
-  serveur ni endpoint public trouve en 2026-09-08. Rattache administrativement
-  a l'UCLouvain — les offres scientifiques passent peut-etre par
-  `ucl-personnels-scientifiques` (a verifier).
+  d'organismes publics belges, pas un seul employeur). La Liste An couvre
+  travaillerpour.be par deux fiches distinctes (`services-publiques-sciences-r-d`,
+  `services-publiques-toutes-les-offres`): celle-ci reste sans scraper.
+- ~~**`institut-de-duve`**~~ — **fait** (Liste An, `de_duve.py`): l'API de
+  lecture du projet Sanity `b98ocrnx` est publique.
 - **`santero-therapeutics`** (`santero.be`) — aucune page carrieres sur le
   site ; candidature par email uniquement (`websantero@santero.be`).
-- **`haute-ecole-leonard-de-vinci`** (`vinci.be/fr/emploi`) — cette page ne
-  liste que le portail JobTeaser **etudiant** (`hevinci.jobteaser.com`, offres
-  de stage/job d'externes), pas un recrutement du personnel HE Vinci.
-  Aucune page RH "recrutement" trouvee sur `vinci.be`.
+- ~~**`haute-ecole-leonard-de-vinci`**~~ — **fait** (Liste An, `vinci.py`):
+  le recrutement du personnel est sur `vinci.talentsquare.com`.
 
 ## A faire — priorise par volume / facilite
 
@@ -138,9 +148,9 @@ Ces 6 noms de la liste du 2026-09-07 resolvent au meme `slug` qu'une fiche
       publique, filtre `country=be` (0 poste belge au 2026-09-02).
 - [x] ~~**`thermo-fisher-scientific-henogen`**~~ — Phenom (`jobs.thermofisher.com`),
       filtre `location_tokens` Gosselies/Seneffe (43 postes BE groupe → 3 locaux).
-- [ ] **`sgs-lab-simon`** — groupe SGS. Workday `sgs.wd3` repond 401 (compte
-      systeme). `careers.sgs.com` inaccessible depuis le conteneur. À reprendre
-      hors conteneur. Site de Bierges.
+- [x] ~~**`sgs-lab-simon`**~~ — la source publique n'est pas le Workday mais
+      SmartRecruiters (`SGS`, `country=be`): 52 postes belges au 2026-11-19
+      (`sgs.py`, Liste An).
 - [ ] **`bausch-lomb-pharma`** — SuccessFactors mais **ancien servlet**
       (`career2.successfactors.eu/career?company=Bausch`, aussi
       `careers.bauschlomb.com/search` qui renvoie 0). Pas le theme SSR gere par
@@ -160,8 +170,9 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [x] ~~`ncardia`~~ / ~~`cellistic`~~ — meme gabarit de site (`SlugCareersScraper`).
       Ncardia 0 en BE (1 a Leiden), Cellistic 2.
 - [x] ~~`quantoom-biosciences`~~ — site WP `/job-application/` → 1 offre.
-- [ ] `celyad-oncology` — 0 poste annoncé, candidature par email. Basse prio.
-- [ ] `montis-biosciences` — Leuven. Site propre, aucune offre affichee. Basse prio.
+- [ ] `celyad-oncology` — 0 poste annoncé. Le site coupe la connexion aux
+      robots (2026-11-19): a suivre a la main, voir `LISTE_AN.md`.
+- [ ] `montis-biosciences` — Leuven. Aucune page carrieres. A la main.
 - [ ] `realco` — Louvain-la-Neuve. Site propre. Au 2026-09-02 : 1 poste
       (Allemagne, remote) — 0 local. Basse prio.
 - [ ] `kantify` — Bruxelles. Aucune offre listee (page "rejoignez-nous" sans
@@ -169,15 +180,15 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [x] ~~`qaelum`~~ — Leuven. Section carrieres Joomla avec flux RSS → 1 offre.
 - [ ] `icometrix` — Leuven. Site Wix, aucune page carrieres publique ;
       rachat par GE HealthCare annonce. Basse prio.
-- [ ] `astrivax` — Leuven. `astrivax.com/vacancies/` : aucune offre ouverte
-      (candidature spontanee seulement). Basse prio.
+- [x] ~~`astrivax`~~ — API REST WordPress `vacancies` (`astrivax.py`, Liste
+      An). 0 offre au 2026-11-19 (candidature spontanee seulement).
 - [x] ~~`univercells-technologies`~~ — rachetee par Donaldson, offres sur le
       Workday `donaldson.wd115`, filtre `location_tokens` Nivelles → 2 offres.
 - [ ] `iteos-therapeutics` / `exothera` / `iba` / `precirix` — injoignables
       depuis le conteneur (voir note ci-dessus ; `data/company-web.csv` a
       `exothera.com` corrige — a retester hors conteneur).
-- [ ] `diasource-immunoassays` — LLN. Candidature par email, aucune offre
-      listee. Basse prio.
+- [x] ~~`diasource-immunoassays`~~ — liste `/job-offers` (`diasource.py`,
+      Liste An). 0 offre au 2026-11-19.
 
 ### Petites structures — verifier qu'il y a une page carrieres exploitable
 
@@ -186,7 +197,7 @@ egress) — `iteostherapeutics.com`, `univercells-technologies.com`,
 - [ ] `astrivax`, `montis-biosciences`, `midiagnostics`, `replasia`,
       `azalea-vision`, `qaelum` (Leuven)
 - [x] ~~`nelson-labs-europe`~~ (Leuven) — Workday groupe Sotera Health.
-- [ ] `sgs-lab-simon` (Bierges) — SGS groupe, ATS Workday possible
+- [x] ~~`sgs-lab-simon`~~ (Bierges) — SmartRecruiters, voir plus haut
 - [ ] `bausch-lomb-pharma` (Bruxelles) — Workday `bauschhealth`
 - [ ] `bristol-myers-squibb` déjà listé plus haut
 

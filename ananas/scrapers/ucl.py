@@ -31,3 +31,14 @@ class UCLouvainPersonnelScientifiqueScraper(Jobs2WebScraper):
     base_url = BASE_URL
     category_id = "3272501"
     careers_url = f"{BASE_URL}/Personnelscientifique/go/UCLouvain-Personnel-scientifique/3272501/"
+
+
+@register
+class UCLouvainPersonnelAcademiqueScraper(Jobs2WebScraper):
+    """Ajoute pour la « Liste An » (2026-11-19): meme site, troisieme categorie."""
+
+    key = "ucl-personnels-academiques"
+    label = "UCLouvain - Personnel academique"
+    base_url = BASE_URL
+    category_id = "4568501"
+    careers_url = f"{BASE_URL}/PersonnelAcademique/go/UCLouvain-Postuler-%C3%A0-un-poste-acad%C3%A9mique/4568501/"

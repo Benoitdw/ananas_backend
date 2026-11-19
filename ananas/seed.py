@@ -2,12 +2,23 @@
 
     python -m ananas.seed [--csv chemin]... [--update] [--link-only]
 
-Trois fichiers sont charges par defaut, dans cet ordre:
+Quatre fichiers sont charges par defaut, dans cet ordre:
 
   - ``partners.csv``          les 81 partenaires du POC BioWin (source 'biowin')
   - ``biotech-belgique.csv``  49 biotech/pharma belges (source 'curated')
   - ``biopark.csv``           137 membres et partenaires du BioPark de Charleroi
                               (source 'biopark'), dedoublonnes des deux premiers
+  - ``liste-an.csv``          la « Liste An » (source 'liste-an'): 62 employeurs
+                              suivis par une personne, dont une bonne moitie
+                              deja presents ci-dessus — voir « Listes » plus bas
+
+**Listes.** Un fichier peut porter une colonne ``slug``: chaque ligne designe
+alors une fiche precise du repertoire, quelle que soit sa provenance. Si elle
+existe deja (BioWin, BioPark, ou proposee par un utilisateur), elle n'est pas
+dupliquee ni modifiee — elle recoit seulement les ``tags`` de la ligne. Sinon
+elle est creee avec ce slug (et son ``careers_url``). La colonne ``tags`` est
+fusionnee, jamais ecrasee: c'est ce qui fait de « Liste An » un filtre de la
+carte qui couvre toute la liste, et non seulement ses entreprises nouvelles.
 
 Le geocodage est deja paye a l'ecriture du CSV (Nominatim, ~1 requete/seconde,
 voir ``python -m ananas.geocode_csv``): les entreprises arrivent avec leur
@@ -47,6 +58,7 @@ DEFAULT_CSVS = (
     DATA_DIR / "partners.csv",
     DATA_DIR / "biotech-belgique.csv",
     DATA_DIR / "biopark.csv",
+    DATA_DIR / "liste-an.csv",
 )
 
 # Champs recopies tels quels du CSV. careers_url et scraper_key n'y sont pas:
@@ -74,6 +86,16 @@ def unique_slug(base: str, taken: set[str]) -> str:
         n += 1
     taken.add(slug)
     return slug
+
+
+def merge_tags(current: str, extra: str) -> str:
+    """Ajoute les tags de ``extra`` a ``current`` sans doublon (casse ignoree),
+    dans l'ordre d'apparition. Ne retire jamais rien."""
+    tags = [t.strip() for t in f"{current},{extra}".split(",") if t.strip()]
+    seen: dict[str, str] = {}
+    for tag in tags:
+        seen.setdefault(tag.casefold(), tag)
+    return ", ".join(seen.values())
 
 
 def _as_float(raw: str) -> float | None:
@@ -106,6 +128,7 @@ def seed(
         # utilisateur porte le meme slug qu'une homonyme du repertoire, et le
         # seed n'a pas a l'ecraser.
         by_source_slug = {(c.source, c.slug): c for c in companies}
+        by_slug = {c.slug: c for c in companies}
         taken = {c.slug for c in companies}
 
         for csv_path in csv_paths:
@@ -115,6 +138,38 @@ def seed(
                 values["source_url"] = (row.get("url") or "").strip()
                 values["lat"] = _as_float(row.get("lat"))
                 values["lon"] = _as_float(row.get("lon"))
+                tags = (row.get("tags") or "").strip()
+
+                if listed_slug := (row.get("slug") or "").strip():
+                    # Ligne de liste: designe une fiche, peut-etre d'une autre
+                    # provenance. On la complete, on ne la remplace pas.
+                    company = by_slug.get(listed_slug)
+                    if company is None:
+                        company = Company(
+                            slug=listed_slug,
+                            careers_url=(row.get("careers_url") or "").strip(),
+                            tags=tags,
+                            **values,
+                        )
+                        db.add(company)
+                        by_slug[listed_slug] = company
+                        taken.add(listed_slug)
+                        created += 1
+                    else:
+                        changed = False
+                        merged = merge_tags(company.tags or "", tags)
+                        if merged != (company.tags or ""):
+                            company.tags = merged
+                            changed = True
+                        # --update ne rafraichit que les fiches de la liste
+                        # elle-meme, jamais celles d'un autre repertoire.
+                        if update and company.source == values["source"]:
+                            for key, value in values.items():
+                                setattr(company, key, value)
+                            changed = True
+                        updated += changed
+                        untouched += not changed
+                    continue
 
                 slug = slugify(values["name"])
                 if values["source_url"]:
@@ -126,6 +181,7 @@ def seed(
                     company = Company(slug=unique_slug(slug, taken), **values)
                     db.add(company)
                     by_source_slug[(company.source, company.slug)] = company
+                    by_slug[company.slug] = company
                     if company.source_url:
                         by_url[company.source_url] = company
                     created += 1
