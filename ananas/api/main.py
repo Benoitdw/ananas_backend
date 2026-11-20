@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ananas.api import admin, auth, channels, companies, home, jobs, profile, saved
+from ananas.api import admin, auth, channels, companies, home, jobs, liste_an, profile, saved
 from ananas.config import settings
 from ananas.ai.registry import load_providers
 from ananas.notifiers.registry import load_notifiers
@@ -51,6 +51,7 @@ app.include_router(auth.router)
 app.include_router(companies.router)
 app.include_router(saved.router)
 app.include_router(jobs.router)
+app.include_router(liste_an.router)
 app.include_router(channels.router)
 app.include_router(profile.router)
 app.include_router(home.router)

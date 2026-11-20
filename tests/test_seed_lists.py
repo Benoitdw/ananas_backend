@@ -2,8 +2,8 @@
 
 La promesse: une entreprise deja au repertoire (BioWin, BioPark, proposee par
 un utilisateur) n'est ni dupliquee ni modifiee par la liste — elle recoit
-seulement le tag de la liste. C'est ce qui permet de filtrer « Liste An » sur
-la carte et d'y voir les 62 employeurs, pas seulement les nouveaux.
+seulement sa categorie dans la liste. C'est ce qui permet de filtrer « Liste
+An » sur la carte et d'y voir tous les employeurs, pas seulement les nouveaux.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from ananas import seed as seed_mod
 from ananas.db import Base
 from ananas.models import Company
 
-FIELDS = ["slug", "name", "type", "city", "country", "website", "careers_url", "tags", "source"]
+FIELDS = ["slug", "name", "type", "city", "country", "website", "careers_url", "category", "source"]
 
 
 @pytest.fixture
@@ -48,14 +48,8 @@ def write_list(path, rows):
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
         for row in rows:
-            writer.writerow({"country": "Belgium", "tags": "Liste An", "source": "liste-an", **row})
+            writer.writerow({"country": "Belgium", "category": "Biotech", "source": "liste-an", **row})
     return path
-
-
-def test_merge_tags_ajoute_sans_doublon_ni_perte():
-    assert seed_mod.merge_tags("", "Liste An") == "Liste An"
-    assert seed_mod.merge_tags("Oncologie, liste an", "Liste An") == "Oncologie, liste an"
-    assert seed_mod.merge_tags("Oncologie", "Liste An") == "Oncologie, Liste An"
 
 
 def test_une_fiche_nouvelle_est_creee_avec_son_slug_et_sa_page_carrieres(db, tmp_path):
@@ -68,13 +62,13 @@ def test_une_fiche_nouvelle_est_creee_avec_son_slug_et_sa_page_carrieres(db, tmp
 
     company = db.scalar(select(Company).where(Company.slug == "zoetis-belgium"))
     assert company.source == "liste-an"
-    assert company.tags == "Liste An"
+    assert company.liste_an_category == "Biotech"
     assert company.careers_url == "https://example.com/jobs"
 
 
-def test_une_fiche_existante_recoit_le_tag_et_rien_d_autre(db, tmp_path):
+def test_une_fiche_existante_recoit_la_categorie_et_rien_d_autre(db, tmp_path):
     db.add(Company(slug="bioxodes", name="Bioxodes", source="biopark", city="Charleroi",
-                   tags="", careers_url=""))
+                   careers_url=""))
     db.commit()
     path = write_list(
         tmp_path / "l.csv",
@@ -87,12 +81,12 @@ def test_une_fiche_existante_recoit_le_tag_et_rien_d_autre(db, tmp_path):
     company = db.scalar(select(Company).where(Company.slug == "bioxodes"))
     assert (company.source, company.name, company.city) == ("biopark", "Bioxodes", "Charleroi")
     assert company.careers_url == ""
-    assert company.tags == "Liste An"
+    assert company.liste_an_category == "Biotech"
     assert db.scalar(select(Company).where(Company.slug != "bioxodes")) is None
 
 
 def test_la_relance_est_idempotente(db, tmp_path):
-    db.add(Company(slug="sciensano", name="Sciensano", source="from_user", tags="Sante"))
+    db.add(Company(slug="sciensano", name="Sciensano", source="from_user"))
     db.commit()
     path = write_list(
         tmp_path / "l.csv",
@@ -102,20 +96,37 @@ def test_la_relance_est_idempotente(db, tmp_path):
     assert seed_mod.seed([path]) == (1, 1, 0)
     assert seed_mod.seed([path]) == (0, 0, 2)
     db.expire_all()
-    tags = db.scalar(select(Company.tags).where(Company.slug == "sciensano"))
-    assert tags == "Sante, Liste An"
+    category = db.scalar(select(Company.liste_an_category).where(Company.slug == "sciensano"))
+    assert category == "Biotech"
 
 
-def test_le_filtre_de_provenance_d_une_liste_montre_aussi_les_fiches_taguees(db):
+def test_une_ligne_sans_categorie_sort_la_fiche_de_la_liste(db, tmp_path):
+    """La categorie fait foi: retirer un employeur de la liste = vider sa
+    categorie dans le CSV. La fiche reste au repertoire."""
+    db.add(Company(slug="sobi", name="Sobi", source="liste-an", liste_an_category="Biotech"))
+    db.commit()
+    path = write_list(tmp_path / "l.csv", [{"slug": "sobi", "name": "Sobi", "category": ""}])
+
+    seed_mod.seed([path])
+    db.expire_all()
+    company = db.scalar(select(Company).where(Company.slug == "sobi"))
+    assert company is not None
+    assert company.liste_an_category is None
+
+
+def test_le_filtre_de_provenance_d_une_liste_montre_toute_la_liste(db):
     """Filtrer « Liste An » doit montrer toute la liste, pas seulement les
     fiches qu'elle a creees: c'est ce qu'on attend d'une liste."""
     from ananas.api.companies import list_companies
 
     db.add_all(
         [
-            Company(slug="zoetis-belgium", name="Zoetis", source="liste-an", tags="Liste An"),
-            Company(slug="gsk-wavre", name="GSK", source="curated", tags="Liste An"),
-            Company(slug="ucb", name="UCB", source="curated", tags=""),
+            Company(slug="zoetis-belgium", name="Zoetis", source="liste-an",
+                    liste_an_category="Biotech"),
+            Company(slug="gsk-wavre", name="GSK", source="curated", liste_an_category="Big pharma"),
+            Company(slug="ucb", name="UCB", source="curated"),
+            # creee par la liste puis retiree: hors liste
+            Company(slug="sobi", name="Sobi", source="liste-an"),
         ]
     )
     db.commit()

@@ -4,19 +4,29 @@ La liste d'employeurs scientifiques de « Listes Emplois Scientifiques.xlsx »
 (2026-11-19), importee dans `data/liste-an.csv` et chargee par
 `python -m ananas.seed`.
 
-**Une ligne = une fiche du repertoire**, designee par son `slug`. La moitie de
-la liste etait deja connue (BioWin, BioPark, repertoire Ananas, proposee par
-un utilisateur): ces fiches ne sont ni dupliquees ni modifiees, elles recoivent
-seulement le tag **« Liste An »**. Les autres sont creees avec la source
-`liste-an` (25 sur une base vierge, 19 sur une base qui a deja les six fiches
-proposees par un utilisateur le 2026-09-07: Saint-Luc, UCLouvain x2, EPHEC,
-Institut de Duve, HE Vinci).
+**Une ligne = une fiche du repertoire**, designee par son `slug`. Les fiches
+deja connues (BioWin, BioPark, repertoire Ananas, proposee par un utilisateur)
+ne sont ni dupliquees ni modifiees: elles recoivent seulement leur
+**categorie** (colonne `category` du CSV -> `companies.liste_an_category`).
+Les autres sont creees avec la source `liste-an`.
 
-Sur la carte, la page d'administration et l'API, le filtre **provenance
-« Liste An »** montre les 62 fiches: celles creees par la liste *et* celles
-qui portent son tag (`LIST_TAGS` dans `models.py`, `matchesSource` dans
-`web/src/lib/sources.ts`). Le filtre par tag « Liste An » donne le meme
-resultat.
+**L'appartenance a la liste, c'est la categorie.** Mise a jour du 2026-11-20:
+l'Excel a une colonne « Categories » (Biotech, Hopital, Big pharma,
+Academie, Services publics, Labo, Lab service, Pharma, Medical company). Les
+lignes deplacees en Feuil3 (pas de page carrieres) et Univercells sont hors
+liste: categorie vide, la fiche reste au repertoire. Le filtre de provenance
+« Liste An » (carte, admin, API) suit `liste_an_category`. Les anciens tags
+ont disparu du site.
+
+**Onglet « Liste An »** (`/liste-an`, `GET /api/liste-an/jobs`): les offres
+ouvertes de la liste, sans score, filtrables par categorie. Le tri pour un
+profil scientifique est dans `ananas/liste_an.py`: exclusions generales
+(technicien, informatique, RH, vente, achats, finance, soins) et consignes de
+la colonne Notes (hopitaux: labo ou recherche clinique; GSK: departements;
+SGS: Laboratory & Testing; Eurofins: Rixensart/Bruxelles/Wavre; CellCarta:
+ecartee seulement si explicitement 100% sur site). Les regles raisonnent par
+concepts (familles de variantes FR/NL/EN), pas par chaine exacte. Les offres
+ecartees restent consultables, avec leur raison.
 
 GSK compte deux lignes (Wavre et Rixensart, deux fiches existantes).
 

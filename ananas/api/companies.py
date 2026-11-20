@@ -24,7 +24,7 @@ from ananas.api.home import get_home
 from ananas.db import get_db
 from ananas.distance import distance_from
 from ananas.models import (
-    LIST_TAGS,
+    SOURCE_LISTE_AN,
     SOURCE_USER,
     Company,
     HiddenCompany,
@@ -90,6 +90,7 @@ def _item(
         core_business=company.core_business,
         tags=company.tags,
         source=company.source,
+        liste_an_category=company.liste_an_category,
         city=company.city,
         lat=company.lat,
         lon=company.lon,
@@ -146,12 +147,10 @@ def list_companies(
     if type:
         stmt = stmt.where(Company.type == type)
     if source:
-        # Une liste (Liste An) couvre aussi les fiches d'autres repertoires
-        # qui portent seulement son tag: le filtre doit les montrer toutes.
-        if list_tag := LIST_TAGS.get(source):
-            stmt = stmt.where(
-                or_(Company.source == source, Company.tags.ilike(f"%{list_tag}%"))
-            )
+        # La Liste An couvre aussi des fiches d'autres repertoires: c'est sa
+        # categorie qui dit l'appartenance, pas la provenance.
+        if source == SOURCE_LISTE_AN:
+            stmt = stmt.where(Company.liste_an_category.is_not(None))
         else:
             stmt = stmt.where(Company.source == source)
 

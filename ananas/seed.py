@@ -8,17 +8,17 @@ Quatre fichiers sont charges par defaut, dans cet ordre:
   - ``biotech-belgique.csv``  49 biotech/pharma belges (source 'curated')
   - ``biopark.csv``           137 membres et partenaires du BioPark de Charleroi
                               (source 'biopark'), dedoublonnes des deux premiers
-  - ``liste-an.csv``          la « Liste An » (source 'liste-an'): 62 employeurs
+  - ``liste-an.csv``          la « Liste An » (source 'liste-an'): les employeurs
                               suivis par une personne, dont une bonne moitie
                               deja presents ci-dessus — voir « Listes » plus bas
 
 **Listes.** Un fichier peut porter une colonne ``slug``: chaque ligne designe
 alors une fiche precise du repertoire, quelle que soit sa provenance. Si elle
 existe deja (BioWin, BioPark, ou proposee par un utilisateur), elle n'est pas
-dupliquee ni modifiee — elle recoit seulement les ``tags`` de la ligne. Sinon
-elle est creee avec ce slug (et son ``careers_url``). La colonne ``tags`` est
-fusionnee, jamais ecrasee: c'est ce qui fait de « Liste An » un filtre de la
-carte qui couvre toute la liste, et non seulement ses entreprises nouvelles.
+dupliquee ni modifiee — elle recoit seulement la ``category`` de la ligne, dans
+``liste_an_category``. Sinon elle est creee avec ce slug (et son
+``careers_url``). La categorie fait foi a chaque passe: une ligne sans
+categorie sort la fiche de la liste (elle reste au repertoire).
 
 Le geocodage est deja paye a l'ecriture du CSV (Nominatim, ~1 requete/seconde,
 voir ``python -m ananas.geocode_csv``): les entreprises arrivent avec leur
@@ -88,16 +88,6 @@ def unique_slug(base: str, taken: set[str]) -> str:
     return slug
 
 
-def merge_tags(current: str, extra: str) -> str:
-    """Ajoute les tags de ``extra`` a ``current`` sans doublon (casse ignoree),
-    dans l'ordre d'apparition. Ne retire jamais rien."""
-    tags = [t.strip() for t in f"{current},{extra}".split(",") if t.strip()]
-    seen: dict[str, str] = {}
-    for tag in tags:
-        seen.setdefault(tag.casefold(), tag)
-    return ", ".join(seen.values())
-
-
 def _as_float(raw: str) -> float | None:
     try:
         return float(raw)
@@ -138,7 +128,7 @@ def seed(
                 values["source_url"] = (row.get("url") or "").strip()
                 values["lat"] = _as_float(row.get("lat"))
                 values["lon"] = _as_float(row.get("lon"))
-                tags = (row.get("tags") or "").strip()
+                category = (row.get("category") or "").strip() or None
 
                 if listed_slug := (row.get("slug") or "").strip():
                     # Ligne de liste: designe une fiche, peut-etre d'une autre
@@ -148,7 +138,7 @@ def seed(
                         company = Company(
                             slug=listed_slug,
                             careers_url=(row.get("careers_url") or "").strip(),
-                            tags=tags,
+                            liste_an_category=category,
                             **values,
                         )
                         db.add(company)
@@ -157,9 +147,8 @@ def seed(
                         created += 1
                     else:
                         changed = False
-                        merged = merge_tags(company.tags or "", tags)
-                        if merged != (company.tags or ""):
-                            company.tags = merged
+                        if company.liste_an_category != category:
+                            company.liste_an_category = category
                             changed = True
                         # --update ne rafraichit que les fiches de la liste
                         # elle-meme, jamais celles d'un autre repertoire.

@@ -100,9 +100,6 @@ SOURCE_BIOPARK = "biopark"
 SOURCE_LISTE_AN = "liste-an"
 SOURCE_USER = "from_user"
 
-# Provenances qui sont des listes: filtrer sur elles montre aussi les fiches
-# d'autres repertoires qui portent leur tag (voir ananas.seed, « Listes »).
-LIST_TAGS = {SOURCE_LISTE_AN: "Liste An"}
 
 
 class Company(Base):
@@ -144,6 +141,11 @@ class Company(Base):
     other_tags: Mapped[str] = mapped_column(Text, default="")
     baseline: Mapped[str] = mapped_column(Text, default="")
     description: Mapped[str] = mapped_column(Text, default="")
+
+    # Categorie dans la « Liste An » (Biotech, Hopital, Big pharma...). NULL =
+    # hors liste. C'est l'appartenance a la liste, quelle que soit la
+    # provenance de la fiche: data/liste-an.csv la renseigne (ananas.seed).
+    liste_an_category: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
 
     # --- localisation
     street: Mapped[str] = mapped_column(String(255), default="")

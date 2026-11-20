@@ -79,6 +79,8 @@ class CompanyListItem(ORM):
     core_business: str
     tags: str = ""
     source: str = "biowin"
+    # Categorie dans la Liste An; None = hors liste
+    liste_an_category: str | None = None
     city: str
     lat: float | None
     lon: float | None
