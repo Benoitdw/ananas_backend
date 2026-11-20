@@ -85,8 +85,11 @@ def my_jobs(
 
     # Les offres sans score (profil absent, extraction en attente) restent
     # visibles: elles passent en fin de tri plutot que de disparaitre.
+    # Job.id en dernier: un meme scrape date des dizaines d'offres a la meme
+    # seconde, sans ce departage la coupe a `limit` serait arbitraire.
     stmt = stmt.order_by(
-        JobMatch.score.desc().nullslast() if sort == "score" else Job.first_seen_at.desc()
+        JobMatch.score.desc().nullslast() if sort == "score" else Job.first_seen_at.desc(),
+        Job.id.desc(),
     )
 
     # La distance n'est pas une colonne SQL: rayon et tri par distance se font
