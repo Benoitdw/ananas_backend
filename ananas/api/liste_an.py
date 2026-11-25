@@ -4,6 +4,10 @@ Pas de score ni de profil: juste le scraping, trie pour un profil
 scientifique par ``ananas.liste_an``. Les offres ecartees sont renvoyees
 aussi, avec leur raison, pour que l'interface puisse les montrer a la demande
 — le filtre se trompe parfois, il ne doit rien cacher definitivement.
+
+L'utilisateur peut aussi masquer une offre lui-meme (``PUT
+/api/me/jobs/{id}/hidden``, la meme table que le feed): elle revient avec
+``hidden=True`` et l'interface la range parmi les ecartees.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ananas.db import get_db
 from ananas.liste_an import Offer, exclusion_reason
-from ananas.models import Company, Job, User
+from ananas.models import Company, HiddenJob, Job, User
 from ananas.security import get_current_user
 
 router = APIRouter(prefix="/api/liste-an", tags=["liste an"])
@@ -37,14 +41,17 @@ class ListeAnJob(BaseModel):
     category: str
     # None = offre retenue; sinon pourquoi le filtre l'a ecartee
     excluded: str | None = None
+    # Masquee par l'utilisateur (independant du filtre)
+    hidden: bool = False
 
 
 @router.get("/jobs", response_model=list[ListeAnJob])
 def liste_an_jobs(
     db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> list[ListeAnJob]:
+    hidden_ids = select(HiddenJob.job_id).where(HiddenJob.user_id == user.id)
     stmt = (
-        select(Job, Company)
+        select(Job, Company, Job.id.in_(hidden_ids))
         .join(Company, Company.id == Job.company_id)
         .where(Company.liste_an_category.is_not(None), Job.closed_at.is_(None))
         .order_by(Job.first_seen_at.desc(), Job.id.desc())
@@ -66,6 +73,7 @@ def liste_an_jobs(
                 company.slug,
                 Offer(job.title, job.location, job.department, job.description),
             ),
+            hidden=bool(hidden),
         )
-        for job, company in db.execute(stmt)
+        for job, company, hidden in db.execute(stmt)
     ]

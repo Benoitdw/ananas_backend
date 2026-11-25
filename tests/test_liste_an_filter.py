@@ -32,6 +32,11 @@ def reason(title: str, slug: str = "biotech-x", **kw) -> str | None:
         "Internship in Data Governance - Quantum Project",
         # « recrutement » dans un titre scientifique n'en fait pas un poste RH
         "Technologue de laboratoire - Réserve de recrutement (H/F/X)",
+        # postdoc: « doctoral » precede de « post », sous toutes ses graphies
+        "Postdoctoral researcher in Literary Studies (ERC project AFROPRESS)",
+        "Post-doctoral fellow in immunology",
+        "Postdoctoraal onderzoeker in Literatuurwetenschappen",
+        "Senior Researcher (Post-Doc) Assistant Professorship Physical AI",
     ],
 )
 def test_les_postes_scientifiques_passent(title):
@@ -58,6 +63,15 @@ def test_les_postes_scientifiques_passent(title):
         ("Talent Partner Patient Supply", "RH"),
         ("Infirmier (H/F/X) - Bloc opératoire", "soins / paramedical"),
         ("Klinisch Verpleegkundige", "soins / paramedical"),
+        # doctorats, en anglais, neerlandais et francais
+        ("PhD - Dynamics of coupled semiconductor lasers", "doctorat (PhD)"),
+        ("PhD Position in Multimodal Sensor Design for Agrifood", "doctorat (PhD)"),
+        ("Ph.D. student in neuroimmunology", "doctorat (PhD)"),
+        ("Doctoral Fellowship - Multimodal portable units for biofilm monitoring", "doctorat (PhD)"),
+        ("Doctoral Candidate Position in Spatial Multi-Omics", "doctorat (PhD)"),
+        ("Doctoraatsbursaal - Multimodale draagbare systemen", "doctorat (PhD)"),
+        ("Doctorant(e) en biologie cellulaire", "doctorat (PhD)"),
+        ("Bourse de doctorat FRIA", "doctorat (PhD)"),
     ],
 )
 def test_l_evident_est_ecarte(title, expected):

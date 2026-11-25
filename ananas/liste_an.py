@@ -98,8 +98,15 @@ ENGINEERING_SITE = Concept(
     r"\bcouture",
 )
 
+# Doctorats (demande du 2026-11-25: le profil vise postdoc et au-dela). Le
+# « post » devant est exclu: « Post-doctoral », « post-PhD » restent.
+PHD = Concept(
+    r"(?<!post )\bph ?d\b", r"(?<!post )\bdoctora(l|t|nt|at)", r"\bdoctorand",
+)
+
 # Exclusion generale: (concept, raison affichee). Premier qui matche gagne.
 GENERAL_EXCLUSIONS: list[tuple[Concept, str]] = [
+    (PHD, "doctorat (PhD)"),
     (TECHNICIAN, "technique / maintenance"),
     (IT, "informatique"),
     (HR, "RH"),

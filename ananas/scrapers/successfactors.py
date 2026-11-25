@@ -81,11 +81,7 @@ class SuccessFactorsScraper(BaseScraper):
         seen: set[str] = set()
 
         for page in range(self.max_pages):
-            params = {"q": "", "startrow": page * self.page_step}
-            if self.search_location:
-                params["locationsearch"] = self.search_location
-            url = f"{self.base_url.rstrip('/')}/search/?{urlencode(params)}"
-            soup = self.get_soup(url)
+            soup = self.get_soup(self.page_url(page * self.page_step))
 
             batch = [self._parse_tile(node) for node in _tiles(soup)]
             batch = [b for b in batch if b]
@@ -105,6 +101,14 @@ class SuccessFactorsScraper(BaseScraper):
                 break
 
         return stubs
+
+    def page_url(self, startrow: int) -> str:
+        """Page de liste commencant a ``startrow``. Par defaut la recherche du
+        site; une sous-classe peut suivre une categorie (``/go/<nom>/<id>/``)."""
+        params = {"q": "", "startrow": startrow}
+        if self.search_location:
+            params["locationsearch"] = self.search_location
+        return f"{self.base_url.rstrip('/')}/search/?{urlencode(params)}"
 
     def _parse_tile(self, node) -> dict[str, Any] | None:
         link = node.select_one("a.jobTitle-link") or node.select_one("a[href*='/job/']")

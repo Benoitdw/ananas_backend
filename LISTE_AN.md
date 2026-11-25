@@ -24,11 +24,14 @@ profil scientifique est dans `ananas/liste_an.py`: exclusions generales
 (technicien, informatique, RH, vente, achats, finance, soins) et consignes de
 la colonne Notes (hopitaux: labo ou recherche clinique; GSK: departements;
 SGS: Laboratory & Testing; Eurofins: Rixensart/Bruxelles/Wavre; CellCarta:
-ecartee seulement si explicitement 100% sur site). Les regles raisonnent par
+ecartee seulement si explicitement 100% sur site). Depuis le 2026-11-25,
+les doctorats sont ecartes (titre contenant PhD, doctoral, doctorat,
+doctoraat..., mais pas postdoc): le profil vise postdoc et au-dela. Les regles raisonnent par
 concepts (familles de variantes FR/NL/EN), pas par chaine exacte. Les offres
 ecartees restent consultables, avec leur raison.
 
-KU Leuven (ajoutee le 2026-11-25, categorie Academie) n'est suivie que sur
+KU Leuven et la VUB (ajoutees le 2026-11-25, categorie Academie). La VUB
+est suivie sur ses annonces en anglais. KU Leuven n'est suivie que sur
 les disciplines de l'URL fournie (facette 12: Cellular and Molecular
 Medicine, Science, Pharmaceutical & Pharmacological Sciences, Oncology,
 Neurosciences, Research professor (BOFZAP), Biology).
@@ -41,7 +44,7 @@ Convention inchangee: `key` du scraper = `slug` de la fiche, liage par
 `python -m ananas.seed --link-only`. Offres comptees le 2026-11-19, depuis un
 poste de developpement (pas depuis le conteneur).
 
-### Nouveaux (30)
+### Nouveaux (31)
 
 | slug | ATS / methode | module | offres |
 |---|---|---|---|
@@ -75,6 +78,7 @@ poste de developpement (pas depuis le conteneur).
 | `2-bridge` | veille de l'onglet « Job opportunity » | `watched_pages.py` | 0 |
 | `center-for-microscopy-and-molecular-imaging-cmmi` | veille du « Coming soon » | `watched_pages.py` | 0 |
 | `ku-leuven` | jobsite KU Leuven (API Elasticsearch « filter2 »), filtres de la liste dans `careers_url` | `kuleuven.py` | 13 (2026-11-25) |
+| `vub` | SuccessFactors, categorie anglaise `EN_ALL-JOBS` (page de la categorie) | `vub.py` | 12 (2026-11-25) |
 
 **Veille de l'etat vide** (`page_watch.py`): pour une page qui n'a jamais
 montre d'offre, un parseur serait devine. On surveille plutot la phrase

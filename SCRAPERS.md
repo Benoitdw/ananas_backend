@@ -54,7 +54,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `radancy.py::RadancyScraper` | Radancy, liste **SSR** (JSON-LD) | `base_url`, `search_path`, `countries` |
 | `attrax.py::AttraxScraper` | Attrax (JSON-LD) | `base_url`, `country` |
 | `workday.py::WorkdayScraper` | Workday CXS JSON | `host`, `tenant`, `site`, (`country_facet_wid` ou `search_text`) |
-| `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url` |
+| `successfactors.py::SuccessFactorsScraper` | SAP SuccessFactors (liste SSR, 2 themes) | `base_url`, `page_url()` pour suivre une categorie (`vub.py`) |
 | `smartrecruiters.py::SmartRecruitersScraper` | SmartRecruiters (API publique) | `sr_company`, `country` |
 | `ncardia.py::SlugCareersScraper` | Site "constructeur" a liens `/careers/<slug>` | `base_url`, `location_tokens` |
 | `talentsquare.py::TalentSquareScraper` | TalentSquare (API JSON `careers_page/public`) | `ts_slug` |
