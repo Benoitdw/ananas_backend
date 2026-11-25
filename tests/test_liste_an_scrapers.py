@@ -124,3 +124,53 @@ def test_lims_titre_depuis_le_nom_du_pdf():
         "IT application Specialist"
     )
     assert _title_from_file(base + "Technologue-de-laboratoire.pdf") == "Technologue de laboratoire"
+
+
+def test_kuleuven_garde_les_filtres_de_l_url_et_remplace_la_page():
+    from urllib.parse import parse_qs
+
+    from ananas.scrapers.kuleuven import KuLeuvenScraper, _search_query
+
+    q = parse_qs(_search_query(KuLeuvenScraper.careers_url, 2))
+    assert q["page"] == ["2"]
+    assert "Research professor (BOFZAP)" in q["12"][0]
+    assert "Pharmaceutical & Pharmacological Sciences" in q["12"][0]
+
+
+def test_kuleuven_parcourt_les_pages_et_lit_la_fiche(monkeypatch):
+    from ananas.scrapers.kuleuven import KuLeuvenScraper
+
+    pages = {
+        "0": [{"_source": {"id": "1", "city": "Leuven", "applyBefore": "20270118",
+                           "orgUnitDescription": "Lab A", "posting": {"title": "Postdoc A"}}}],
+        "1": [{"_source": {"id": "2", "posting": {"title": "PhD B", "teaser": "accroche"}}}],
+    }
+    calls = []
+
+    class Resp:
+        def __init__(self, page):
+            self.page = page
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"hits": pages.get(self.page, []), "total_nb_hits": 2}
+
+    def post(url, json, timeout):
+        page = url.rsplit("page=", 1)[1]
+        calls.append(page)
+        return Resp(page)
+
+    scraper = KuLeuvenScraper()
+    scraper.rate_limit = 0
+    monkeypatch.setattr(scraper.session, "post", post)
+    scraper.get_soup = lambda url: soup_of(
+        '<div class="row"><div class="col-md-8">Texte complet</div></div>' if url.endswith("/1?lang=en") else "<p/>"
+    )
+
+    a, b = scraper.fetch()
+    assert calls == ["0", "1"]
+    assert (a.external_id, a.department, a.url) == ("1", "Lab A", "https://www.kuleuven.be/personeel/jobsite/jobs/1?lang=en")
+    assert a.description.startswith("Apply before: 2027-01-18") and "Texte complet" in a.description
+    assert b.description == "accroche" and b.location == "Leuven"

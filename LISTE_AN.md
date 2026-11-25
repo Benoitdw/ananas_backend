@@ -28,6 +28,11 @@ ecartee seulement si explicitement 100% sur site). Les regles raisonnent par
 concepts (familles de variantes FR/NL/EN), pas par chaine exacte. Les offres
 ecartees restent consultables, avec leur raison.
 
+KU Leuven (ajoutee le 2026-11-25, categorie Academie) n'est suivie que sur
+les disciplines de l'URL fournie (facette 12: Cellular and Molecular
+Medicine, Science, Pharmaceutical & Pharmacological Sciences, Oncology,
+Neurosciences, Research professor (BOFZAP), Biology).
+
 GSK compte deux lignes (Wavre et Rixensart, deux fiches existantes).
 
 ## Scrapers
@@ -36,7 +41,7 @@ Convention inchangee: `key` du scraper = `slug` de la fiche, liage par
 `python -m ananas.seed --link-only`. Offres comptees le 2026-11-19, depuis un
 poste de developpement (pas depuis le conteneur).
 
-### Nouveaux (29)
+### Nouveaux (30)
 
 | slug | ATS / methode | module | offres |
 |---|---|---|---|
@@ -69,6 +74,7 @@ poste de developpement (pas depuis le conteneur).
 | `aboleris-pharma` | veille de l'etat vide | `watched_pages.py` | 0 |
 | `2-bridge` | veille de l'onglet « Job opportunity » | `watched_pages.py` | 0 |
 | `center-for-microscopy-and-molecular-imaging-cmmi` | veille du « Coming soon » | `watched_pages.py` | 0 |
+| `ku-leuven` | jobsite KU Leuven (API Elasticsearch « filter2 »), filtres de la liste dans `careers_url` | `kuleuven.py` | 13 (2026-11-25) |
 
 **Veille de l'etat vide** (`page_watch.py`): pour une page qui n'a jamais
 montre d'offre, un parseur serait devine. On surveille plutot la phrase

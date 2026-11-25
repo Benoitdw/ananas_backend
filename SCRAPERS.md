@@ -67,6 +67,7 @@ Convention : `key` du scraper = `slug` de l'entreprise → liage automatique par
 | `jazzhr.py::JazzHRScraper` | JazzHR (`applytojob.com`) | `jazz_slug`, `location_tokens` |
 | `beehire.py::BeehireScraper` | Beehire (`getPublicCampaigns`) | `beehire_slug` |
 | `bioparkjobs.py::BioparkJobsScraper` | jobboard biopark.jobs | `bp_employer` |
+| `kuleuven.py::KuLeuvenScraper` | jobsite KU Leuven (API « filter2 », query de la page transmise) | `careers_url` (recherche filtree), `project` |
 | `travaillerpour.py::TravaillerPourScraper` | travaillerpour.be (fonction publique federale) | `careers_url` (recherche filtree) |
 | `page_watch.py::PageWatchScraper` | aucune offre en ligne: veille de la phrase « aucune offre » | `empty_markers`, `region` |
 
